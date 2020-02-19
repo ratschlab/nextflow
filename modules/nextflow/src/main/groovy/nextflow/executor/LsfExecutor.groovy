@@ -231,7 +231,7 @@ class LsfExecutor extends AbstractGridExecutor {
         def result = new LinkedHashMap<>(20)
 
         // check environment variable exists
-        def customParams = getEnv0('NF_LSF_PARAMS')
+        def customParams = getEnv0('NXF_LSF_CUSTOMDIR')
         def envDir = getEnv0('LSF_ENVDIR')
         if ( !envDir && !customParams )
             return result
