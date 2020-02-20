@@ -36,7 +36,7 @@ import nextflow.processor.TaskRun
 @Slf4j
 class LsfExecutor extends AbstractGridExecutor {
 
-    static private Pattern KEY_REGEX = ~/^[A-Z_0-9]+=.*/
+    static private Pattern KEY_REGEX = ~/^[A-Z_0-9]+[ ]*=.*/
 
     static private Pattern QUOTED_STRING_REGEX = ~/"((?:[^"\\]|\\.)*)"(\s*#.*)?/
 
@@ -230,19 +230,39 @@ class LsfExecutor extends AbstractGridExecutor {
     protected Map<String,String> parseLsfConfig() {
         def result = new LinkedHashMap<>(20)
 
-        // check environment variable exists
-        def customParams = getEnv0('NXF_LSF_CUSTOMDIR')
-        def envDir = getEnv0('LSF_ENVDIR')
-        if ( !envDir && !customParams )
-            return result
-        if ( customParams) {
-            def envFile = Paths.get(envDir).resolve("lsb.params")
-        } else {
-            def envFile = Paths.get(envDir).resolve("lsf.conf")
+        // check whether there is a custom LSF config path defined (allowing to parse lsb.params)
+        def customEnvDir = getEnv0('NXF_LSF_CUSTOMDIR')
+        if ( customEnvDir ) {
+            def envFile = Paths.get(customEnvDir).resolve("lsb.params")
+            if ( envFile.exists() ) {
+                for (def line : envFile.readLines() ){
+                    if( !KEY_REGEX.matcher(line).matches() )
+                        continue
+                    def entry = line.tokenize('=')
+                    if( entry.size() != 2 )
+                        continue
+                    def (String key,String value) = entry
+                    def matcher = QUOTED_STRING_REGEX.matcher(value)
+                    if( matcher.matches() ) {
+                        value = matcher.group(1)
+                    }
+                    else {
+                        int p = value.indexOf('#')
+                        value = p==-1 ? value.trim() : value.substring(0,p).trim()
+                    }
+                    key = key.trim()
+                    result.putAt(key,value)
+                }
+            }
         }
-        if ( !envFile.exists() )
+        // check environment variable exists
+        def envDir = getEnv0('LSF_ENVDIR')
+        if ( !envDir )
             return result
-
+        def envFile = Paths.get(envDir).resolve("lsf.conf")
+        if ( !envFile.exists() ) {
+            return result
+        }
         for (def line : envFile.readLines() ){
             if( !KEY_REGEX.matcher(line).matches() )
                 continue
@@ -258,7 +278,7 @@ class LsfExecutor extends AbstractGridExecutor {
                 int p = value.indexOf('#')
                 value = p==-1 ? value.trim() : value.substring(0,p).trim()
             }
-
+            key = key.trim()
             result.putAt(key,value)
         }
 
@@ -288,11 +308,18 @@ class LsfExecutor extends AbstractGridExecutor {
             perJobMemLimit = session.getExecConfigProp(name, 'perJobMemLimit', false)
         }
 
+        // per slot reserve 
+        if( conf.get('RESOURCE_RESERVE_PER_SLOT') ) {
+            final str = conf.get('RESOURCE_RESERVE_PER_SLOT').toUpperCase()
+            perTaskReserve = str == 'Y'
+            log.debug "[LSF] Detected lsb.params RESOURCE_RESERVE_PER_SLOT=$str ($perTaskReserve)"
+        }
+
         // per task reserve https://github.com/nextflow-io/nextflow/issues/1071#issuecomment-481412239
         if( conf.get('RESOURCE_RESERVE_PER_TASK') ) {
             final str = conf.get('RESOURCE_RESERVE_PER_TASK').toUpperCase()
             perTaskReserve = str == 'Y'
-            log.debug "[LSF] Detected lsf.conf RESOURCE_RESERVE_PER_TASK=$str ($perJobMemLimit)"
+            log.debug "[LSF] Detected lsf.conf RESOURCE_RESERVE_PER_TASK=$str ($perTaskReserve)"
         }
     }
 
