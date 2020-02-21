@@ -308,13 +308,6 @@ class LsfExecutor extends AbstractGridExecutor {
             perJobMemLimit = session.getExecConfigProp(name, 'perJobMemLimit', false)
         }
 
-        // per slot reserve 
-        if( conf.get('RESOURCE_RESERVE_PER_SLOT') ) {
-            final str = conf.get('RESOURCE_RESERVE_PER_SLOT').toUpperCase()
-            perTaskReserve = str == 'Y'
-            log.debug "[LSF] Detected lsb.params RESOURCE_RESERVE_PER_SLOT=$str ($perTaskReserve)"
-        }
-
         // per task reserve https://github.com/nextflow-io/nextflow/issues/1071#issuecomment-481412239
         if( conf.get('RESOURCE_RESERVE_PER_TASK') ) {
             final str = conf.get('RESOURCE_RESERVE_PER_TASK').toUpperCase()
