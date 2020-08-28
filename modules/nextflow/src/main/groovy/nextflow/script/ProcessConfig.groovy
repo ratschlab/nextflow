@@ -1,4 +1,5 @@
 /*
+ * Copyright 2020, Seqera Labs
  * Copyright 2013-2019, Centre for Genomic Regulation (CRG)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -142,8 +143,6 @@ class ProcessConfig implements Map<String,Object>, Cloneable {
      */
     private outputs = new OutputsList()
 
-    private Map legacySettings
-
     /**
      * Initialize the taskConfig object with the defaults values
      *
@@ -184,11 +183,6 @@ class ProcessConfig implements Map<String,Object>, Cloneable {
     @PackageScope
     ProcessConfig setProcessName( String name ) {
         this.processName = name
-        return this
-    }
-
-    ProcessConfig setLegacySettings( Map map ) {
-        this.legacySettings = map
         return this
     }
 
@@ -292,7 +286,6 @@ class ProcessConfig implements Map<String,Object>, Cloneable {
             return result
         }
         else {
-            if( name == 'gpu' ) gpuWarn()
             return configProperties.put(name,value)
         }
     }
@@ -300,9 +293,10 @@ class ProcessConfig implements Map<String,Object>, Cloneable {
     @PackageScope
     BaseScript getOwnerScript() { ownerScript }
 
-    @PackageScope
     TaskConfig createTaskConfig() {
-        new TaskConfig(configProperties)
+        if(configProperties.validExitStatus != DEFAULT_CONFIG.validExitStatus)
+            log.warn1 "Directive 'validExitStatus' has been deprecated -- Check process '$processName'"
+        return new TaskConfig(configProperties)
     }
 
     /**
@@ -379,12 +373,6 @@ class ProcessConfig implements Map<String,Object>, Cloneable {
         if( fullyQualifiedName && (fullyQualifiedName!=simpleName || fullyQualifiedName!=baseName) )
             this.applyConfigSelector(configProcessScope, "withName:", fullyQualifiedName)
 
-        // -- Apply process specific setting defined using `process.$name` syntax
-        //    NOTE: this is deprecated and will be removed
-        if( legacySettings ) {
-            this.applyConfigSettings(legacySettings)
-        }
-
         // -- Apply defaults
         this.applyConfigDefaults(configProcessScope)
 
@@ -411,9 +399,6 @@ class ProcessConfig implements Map<String,Object>, Cloneable {
             return
 
         for( Entry<String,?> entry: settings ) {
-            if( entry.key.startsWith('$'))
-                continue
-
             if( entry.key.startsWith("withLabel:") || entry.key.startsWith("withName:"))
                 continue
 
@@ -507,7 +492,9 @@ class ProcessConfig implements Map<String,Object>, Cloneable {
     }
 
     InParam _in_set( Object... obj ) {
-        if( NF.isDsl2() ) log.warn1 "Input of type `set` is deprecated -- Use `tuple` instead"
+        final msg = "Input of type `set` is deprecated -- Use `tuple` instead"
+        if( NF.dsl2Final ) throw new DeprecationException(msg)
+        if( NF.isDsl2() ) log.warn1(msg)
         new TupleInParam(this).bind(obj)
     }
 
@@ -576,7 +563,9 @@ class ProcessConfig implements Map<String,Object>, Cloneable {
     }
 
     OutParam _out_set( Object... obj ) {
-        if( NF.isDsl2() ) log.debug "Output of type `set` is deprecated -- Use `tuple` instead"
+        final msg = "Output of type `set` is deprecated -- Use `tuple` instead"
+        if( NF.dsl2Final ) throw new DeprecationException(msg)
+        if( NF.isDsl2() ) log.warn1(msg)
         new TupleOutParam(this) .bind(obj)
     }
 
@@ -831,20 +820,6 @@ class ProcessConfig implements Map<String,Object>, Cloneable {
         else if( value != null )
             throw new IllegalArgumentException("Not a valid `accelerator` directive value: $value [${value.getClass().getName()}]")
         return this
-    }
-
-    ProcessConfig gpu( Map params, value ) {
-        gpuWarn()
-        accelerator(params, value)
-    }
-
-    ProcessConfig gpu( value ) {
-        gpuWarn()
-        accelerator(value)
-    }
-
-    protected void gpuWarn() {
-        log.warn1('Directive `gpu` has been deprecated -- Use `accelerator` instead')
     }
 
 }

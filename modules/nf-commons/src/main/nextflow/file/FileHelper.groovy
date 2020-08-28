@@ -1,4 +1,5 @@
 /*
+ * Copyright 2020, Seqera Labs
  * Copyright 2013-2019, Centre for Genomic Regulation (CRG)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -461,7 +462,7 @@ class FileHelper {
                 result.access_key = credentials[0]
                 result.secret_key = credentials[1]
                 if (credentials.size() == 3) {
-                    result.session_key = credentials[2]
+                    result.session_token = credentials[2]
                     log.debug "Using AWS temporary session token for S3FS."
                 }
             }
@@ -493,8 +494,8 @@ class FileHelper {
         if( config.secret_key && config.secret_key.size()>6 )
             result.secret_key = "${config.secret_key.substring(0,6)}.."
 
-        if( config.session_key && config.session_key.size()>6 )
-            result.session_key = "${config.session_key.substring(0,6)}.."
+        if( config.session_token && config.session_token.size()>6 )
+            result.session_token = "${config.session_token.substring(0,6)}.."
 
         return result.toString()
     }

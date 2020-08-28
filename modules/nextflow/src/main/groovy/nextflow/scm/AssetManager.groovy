@@ -1,4 +1,5 @@
 /*
+ * Copyright 2020, Seqera Labs
  * Copyright 2013-2019, Centre for Genomic Regulation (CRG)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -29,6 +30,7 @@ import nextflow.cli.HubOptions
 import nextflow.config.ConfigParser
 import nextflow.config.Manifest
 import nextflow.exception.AbortOperationException
+import nextflow.exception.AmbiguousPipelineNameException
 import nextflow.script.ScriptFile
 import nextflow.util.IniFile
 import org.eclipse.jgit.api.CreateBranchCommand
@@ -103,6 +105,12 @@ class AssetManager {
         def config = ProviderConfig.getDefault()
         // build the object
         build(pipelineName, config, cliOpts)
+    }
+
+    AssetManager( String pipelineName, Map config ) {
+        assert pipelineName
+        // build the object
+        build(pipelineName, config)
     }
 
     /**
@@ -271,7 +279,8 @@ class AssetManager {
         }
 
         if( qualifiedName instanceof List ) {
-            throw new AbortOperationException("Which one do you mean?\n${qualifiedName.join('\n')}")
+            final msg = "Which one do you mean?\n${qualifiedName.join('\n')}"
+            throw new AmbiguousPipelineNameException(msg, qualifiedName)
         }
 
         return qualifiedName
@@ -736,6 +745,17 @@ class AssetManager {
         def result = new ArrayList<String>(branches.size() + tags.size())
         result.addAll(branches)
         result.addAll(tags)
+        return result
+    }
+
+    List<RevisionInfo> getRemoteRevisions() {
+        final result = new ArrayList(50)
+        for( def branch : provider.getBranches() ) {
+            result.add(new RevisionInfo(branch.commitId, branch.name, RevisionInfo.Type.BRANCH))
+        }
+        for( def tag : provider.getTags() ) {
+            result.add(new RevisionInfo(tag.commitId, tag.name, RevisionInfo.Type.TAG))
+        }
         return result
     }
 

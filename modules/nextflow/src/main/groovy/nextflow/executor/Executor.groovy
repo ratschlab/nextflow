@@ -1,4 +1,5 @@
 /*
+ * Copyright 2020, Seqera Labs
  * Copyright 2013-2019, Centre for Genomic Regulation (CRG)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,7 +18,6 @@
 package nextflow.executor
 
 import java.nio.file.Path
-import java.util.concurrent.CountDownLatch
 
 import groovy.transform.Memoized
 import groovy.transform.PackageScope
@@ -79,7 +79,7 @@ abstract class Executor {
      *
      * @param task A {@code TaskRun} instance
      */
-    final void submit( TaskRun task, boolean awaitTermination ) {
+    final void submit( TaskRun task ) {
         log.trace "Scheduling process: ${task}"
 
         if( session.isTerminated() ) {
@@ -88,21 +88,12 @@ abstract class Executor {
 
         final handler = createTaskHandler(task)
 
-        // set a count down latch if the execution is blocking
-        if( awaitTermination )
-            handler.latch = new CountDownLatch(1)
-
         /*
          * Add the task to the queue for processing
          * Note: queue is implemented as a fixed size blocking queue, when
          * there's not space *put* operation will block until, some other tasks finish
          */
         monitor.schedule(handler)
-        if( handler && handler.latch ) {
-            log.trace "Process ${task} > blocking"
-            handler.latch.await()
-            log.trace "Process ${task} > complete"
-        }
     }
 
     /**

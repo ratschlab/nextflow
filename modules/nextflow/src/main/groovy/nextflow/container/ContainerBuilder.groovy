@@ -1,4 +1,5 @@
 /*
+ * Copyright 2020, Seqera Labs
  * Copyright 2013-2019, Centre for Genomic Regulation (CRG)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -119,7 +120,7 @@ abstract class ContainerBuilder<V extends ContainerBuilder> {
         return run + ' ' + launcher
     }
 
-    String getKillCommand() { return null }
+    String getKillCommand() { return '[[ "$pid" ]] && kill $pid 2>/dev/null' }
 
     String getRemoveCommand() { return null }
 

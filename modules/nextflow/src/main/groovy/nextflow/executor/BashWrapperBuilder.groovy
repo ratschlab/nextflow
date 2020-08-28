@@ -1,4 +1,5 @@
 /*
+ * Copyright 2020, Seqera Labs
  * Copyright 2013-2019, Centre for Genomic Regulation (CRG)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -42,6 +43,8 @@ import nextflow.util.Escape
 @Slf4j
 @CompileStatic
 class BashWrapperBuilder {
+
+    static final public KILL_CMD = '[[ "$pid" ]] && nxf_kill $pid'
 
     static final private ENDL = '\n'
 
@@ -218,7 +221,7 @@ class BashWrapperBuilder {
         else {
             binding.container_boxid = null
             binding.container_helpers = null
-            binding.kill_cmd = '[[ "$pid" ]] && nxf_kill $pid'
+            binding.kill_cmd = KILL_CMD
         }
 
         binding.cleanup_cmd = getCleanupCmd(changeDir)

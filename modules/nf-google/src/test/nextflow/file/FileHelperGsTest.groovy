@@ -1,4 +1,5 @@
 /*
+ * Copyright 2020, Seqera Labs
  * Copyright 2013-2019, Centre for Genomic Regulation (CRG)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -22,6 +23,9 @@ import java.nio.file.Paths
 import com.google.cloud.storage.contrib.nio.CloudStorageFileSystem
 import spock.lang.Specification
 
+import nextflow.Global
+import nextflow.Session
+
 /**
  *
  * @author Paolo Di Tommaso <paolo.ditommaso@gmail.com>
@@ -29,6 +33,11 @@ import spock.lang.Specification
 class FileHelperGsTest extends Specification {
 
     def 'should parse google storage path' () {
+
+        given:
+        Global.session = Mock(Session) {
+            getConfig() >> [google:[project:'foo', region:'x']]
+        }
 
         expect:
         FileHelper.asPath('file.txt') ==
@@ -44,7 +53,7 @@ class FileHelperGsTest extends Specification {
         and:
         FileHelper.asPath('gs://foo/b a r.txt') ==
                 CloudStorageFileSystem.forBucket('foo').getPath('/b a r.txt')
-        
+
         and:
         FileHelper.asPath('gs://f o o/bar.txt') ==
                 CloudStorageFileSystem.forBucket('f o o').getPath('/bar.txt')
@@ -57,6 +66,7 @@ class FileHelperGsTest extends Specification {
 
     def 'should strip ending slash' () {
         given:
+        Global.session = Mock(Session) { getConfig() >> [google:[project:'foo', region:'x']] }
         def nxFolder = Paths.get('/my-bucket/foo')
         def nxNested = Paths.get('/my-bucket/foo/bar/')
         and:

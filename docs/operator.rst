@@ -26,8 +26,6 @@ Operators can be separated in to seven groups:
         .println { it }
         .filter( ~/^a.*/ )
 
-  ::
-
 
 Filtering operators
 ===================
@@ -433,6 +431,9 @@ as shown below::
 groupBy
 ----------
 
+.. warning::
+    This operator is deprecated. Use the `groupTuple`_ operator instead.
+
 The ``groupBy`` operator collects the values emitted by the source channel grouping them together using a `mapping`
 function that associates each item with a key. When finished, it emits an associative
 array that maps each key to the set of items identified by that key.  
@@ -456,6 +457,9 @@ following these rules:
 * Any value of type ``Map.Entry`` is associated with the value of its ``key`` attribute.
 * Any value of type ``Collection`` or ``Array`` is associated with its first entry.
 * For any other value, the value itself is used as a key.
+
+
+.. _operator-grouptuple:
 
 groupTuple
 ----------
@@ -708,6 +712,8 @@ For example::
 
 See also: `toList`_ and `toSortedList`_ operator.
 
+.. _operator-flatten:
+
 flatten
 ----------
 
@@ -848,7 +854,7 @@ text entries. For example::
 The above example shows hows CSV text is parsed and is split into single rows. Values can be accessed
 by its column index in the row object.
 
-When the CVS begins with a header line defining the columns names, you can specify the parameter ``header: true`` which
+When the CSV begins with a header line defining the columns names, you can specify the parameter ``header: true`` which
 allows you to reference each value by its name, as shown in the following example::
 
     Channel
@@ -1161,6 +1167,8 @@ by              The index (zero based) of the element to be used as grouping key
                 A key composed by multiple elements can be defined specifying a list of indices e.g. ``by: [0,2]``
 remainder       When ``false`` incomplete tuples (i.e. with less than `size` grouped items)
                 are discarded (default). When ``true`` incomplete tuples are emitted as the ending emission.
+failOnDuplicate An error is reported when the same key is found more than once.
+failOnMismatch  An error is reported when a channel emits a value for which there isn't a corresponding element in the joining channel. This option cannot be used with ``remainder``.
 =============== ========================
 
 
@@ -1168,6 +1176,9 @@ remainder       When ``false`` incomplete tuples (i.e. with less than `size` gro
 
 merge
 --------
+
+.. warning::
+    This operator is deprecated and it will be removed in upcoming release.
 
 The ``merge`` operator lets you join items emitted by two (or more) channels into a new channel.
 
@@ -1390,14 +1401,14 @@ The following parameters can be used with the ``collectFile`` operator:
 =============== ========================
 Name            Description
 =============== ========================
-keepHeader      Prepend the resulting file with the header fetched in the first collected file. The header size (ie. lines) can be specified by using the ``skip`` parameter (default: ``false``), to determine how many lines to remove from all collected files except for the first (where no lines will be removed).
-name            Name of the file where all received values are stored.
-newLine         Appends a ``newline`` character automatically after each entry (default: ``false``).
-seed            A value or a map of values used to initialise the files content.
-skip            Skip the first `n` lines eg. ``skip: 1``.
-sort            Defines sorting criteria of content in resulting file(s). See below for sorting options.
-storeDir        Folder where the resulting file(s) are be stored.
-tempDir         Folder where temporary files, used by the collecting process, are stored.
+``keepHeader``  Prepend the resulting file with the header fetched in the first collected file. The header size (ie. lines) can be specified by using the ``skip`` parameter (default: ``false``), to determine how many lines to remove from all collected files except for the first (where no lines will be removed).
+``name``        Name of the file where all received values are stored.
+``newLine``     Appends a ``newline`` character automatically after each entry (default: ``false``).
+``seed``        A value or a map of values used to initialise the files content.
+``skip``        Skip the first `n` lines eg. ``skip: 1``.
+``sort``        Defines sorting criteria of content in resulting file(s). See below for sorting options.
+``storeDir``    Folder where the resulting file(s) are be stored.
+``tempDir``     Folder where temporary files, used by the collecting process, are stored.
 =============== ========================
 
 .. note:: The file content is sorted in such a way that it does not depend on the order on which
@@ -1410,11 +1421,11 @@ can be specified:
 =============== ========================
 Sort            Description
 =============== ========================
-false           Disable content sorting. Entries are appended as they are produced.
-true            Order the content by the entries natural ordering i.e. numerical for number, lexicographic for string, etc. See http://docs.oracle.com/javase/tutorial/collections/interfaces/order.html
-index           Order the content by the incremental index number assigned to each entry while they are collected.
-hash            Order the content by the hash number associated to each entry (default)
-deep            Similar to the previous, but the hash number is created on actual entries content e.g. when the entry is a file the hash is created on the actual file content.
+``false``       Disable content sorting. Entries are appended as they are produced.
+``true``        Order the content by the entries natural ordering i.e. numerical for number, lexicographic for string, etc. See http://docs.oracle.com/javase/tutorial/collections/interfaces/order.html
+``'index'``     Order the content by the incremental index number assigned to each entry while they are collected.
+``'hash'``      Order the content by the hash number associated to each entry (default)
+``'deep'``      Similar to the previous, but the hash number is created on actual entries content e.g. when the entry is a file the hash is created on the actual file content.
 `custom`        A custom sorting criteria can be specified by using either a :ref:`Closure <script-closure>` or a `Comparator <http://docs.oracle.com/javase/7/docs/api/java/util/Comparator.html>`_ object.
 =============== ========================
 
@@ -1572,8 +1583,7 @@ The forking operators are:
 branch
 ------
 
-.. warning:: This is an experimental operator. Syntax and behavior may change.
-  Required version `19.08.0-edge` or later.
+.. note:: Requires Nextflow version ``19.08.0-edge`` or later.
 
 The ``branch`` operator allows you to forward the items emitted by a source channel to one
 or more output channels, `choosing` one out of them at a time.
@@ -1686,8 +1696,7 @@ See also `branch`_ operator.
 multiMap
 --------
 
-.. note:: This is an experimental operator. Syntax and behavior may change.
-  Required version `19.11.0-edge` or later.
+.. note:: Requires Nextflow version ``19.11.0-edge`` or later.
 
 The multiMap operator allows you to forward the items emitted by a source channel to two
 or more output channels mapping each input value as a separate element.

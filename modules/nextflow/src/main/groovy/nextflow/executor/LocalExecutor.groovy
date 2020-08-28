@@ -1,4 +1,5 @@
 /*
+ * Copyright 2020, Seqera Labs
  * Copyright 2013-2019, Centre for Genomic Regulation (CRG)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,6 +17,7 @@
 
 package nextflow.executor
 
+import java.nio.file.FileSystems
 import java.nio.file.Path
 import java.util.concurrent.Callable
 import java.util.concurrent.Future
@@ -61,6 +63,13 @@ class LocalExecutor extends Executor {
 
     }
 
+    @Override
+    protected void register() {
+        super.register()
+        if( workDir.fileSystem != FileSystems.default ) {
+            log.warn "Local executor only supports default file system -- Check work directory: ${getWorkDir().toUriString()}"
+        }
+    }
 }
 
 

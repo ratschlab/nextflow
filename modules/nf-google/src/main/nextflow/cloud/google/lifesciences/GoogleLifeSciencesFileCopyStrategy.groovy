@@ -58,6 +58,13 @@ class GoogleLifeSciencesFileCopyStrategy extends SimpleFileCopyStrategy {
         final createDirectories  = []
         final stagingCommands = []
 
+        final gsutilPrefix = new StringBuilder()
+        gsutilPrefix.append("gsutil -m -q")
+
+        if(config.enableRequesterPaysBuckets) {
+            gsutilPrefix.append(" -u ${config.project}")
+        }
+
         for( String stageName : inputFiles.keySet() ) {
             final storePath = inputFiles.get(stageName)
             final storePathIsDir = storePath.isDirectory()
@@ -72,13 +79,13 @@ class GoogleLifeSciencesFileCopyStrategy extends SimpleFileCopyStrategy {
             }
 
             if(storePathIsDir) {
-                stagingCommands << "gsutil -m -q cp -R $escapedStoreUri/ $localTaskDir".toString()
+                stagingCommands << "$gsutilPrefix cp -R $escapedStoreUri $localTaskDir".toString()
                 //check if we need to move the directory (gsutil doesn't support renaming directories on copy)
-                if(parent || !storePath.toString().endsWith(stageName)) {
+                if(parent || !storePath.name.endsWith(stageName)) {
                     stagingCommands << "mv $localTaskDir/${Escape.path(storePath.name)} $localTaskDir/$escapedStageName".toString()
                 }
             } else {
-                stagingCommands << "gsutil -m -q cp $escapedStoreUri $localTaskDir/$escapedStageName".toString()
+                stagingCommands << "$gsutilPrefix cp $escapedStoreUri $localTaskDir/$escapedStageName".toString()
             }
         }
 
@@ -130,6 +137,8 @@ class GoogleLifeSciencesFileCopyStrategy extends SimpleFileCopyStrategy {
     }
 
     String copyMany(String local, Path target) {
+        if ( local.endsWith("/") )
+            local = local.substring(0,local.length()-1)
         "IFS=\$'\\n'; for name in \$(eval \"ls -1d ${Escape.path(local)}\" 2>/dev/null);do gsutil -m -q cp -R \$name ${Escape.uriPath(target)}/\$name; done; unset IFS"
     }
 

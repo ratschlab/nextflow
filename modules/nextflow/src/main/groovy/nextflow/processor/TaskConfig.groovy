@@ -1,4 +1,5 @@
 /*
+ * Copyright 2020, Seqera Labs
  * Copyright 2013-2019, Centre for Genomic Regulation (CRG)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -39,7 +40,9 @@ import nextflow.util.MemoryUnit
 @CompileStatic
 class TaskConfig extends LazyMap implements Cloneable {
 
-    private transient Map cache = [:]
+    static private final List<Integer> EXIT_ZERO = [0]
+
+    private transient Map cache = new LinkedHashMap(20)
 
     TaskConfig() {  }
 
@@ -164,7 +167,7 @@ class TaskConfig extends LazyMap implements Cloneable {
         if( result != null )
             return [result as Integer]
 
-        return [0]
+        return EXIT_ZERO
     }
 
     ErrorStrategy getErrorStrategy() {
@@ -234,6 +237,10 @@ class TaskConfig extends LazyMap implements Cloneable {
         catch( Exception e ) {
             throw new AbortOperationException("Not a valid `time` value in process definition: $value")
         }
+    }
+
+    boolean hasCpus() {
+        get('cpus') != null
     }
 
     int getCpus() {

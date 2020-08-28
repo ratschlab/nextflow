@@ -59,6 +59,10 @@ class GoogleLifeSciencesSubmitRequest {
     Path workDir
 
     Integer bootDiskSizeGb
+    
+    String cpuPlatform
 
     String entryPoint
+
+    boolean usePrivateAddress
 }

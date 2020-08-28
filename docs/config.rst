@@ -356,7 +356,7 @@ engineOptions       This attribute can be used to provide any option supported b
 envWhitelist        Comma separated list of environment variable names to be included in the container environment.
 runOptions          This attribute can be used to provide any extra command line options supported by the ``singularity exec``.
 noHttps             Turn this flag to ``true`` to pull the Singularity image with http protocol (default: ``false``).
-autoMounts          When ``true`` Nextflow automatically mounts host paths in the executed contained. It requires the `user bind control` feature enabled in your Singularity installation (default: ``false``).
+autoMounts          When ``true`` Nextflow automatically mounts host paths in the executed container. It requires the `user bind control` feature enabled in your Singularity installation (default: ``false``).
 cacheDir            The directory where remote Singularity images are stored. When using a computing cluster it must be a shared folder accessible to all computing nodes.
 pullTimeout         The amount of time the Singularity pull can last, exceeding which the process is terminated (default: ``20 min``).
 ================== ================
@@ -415,6 +415,7 @@ Name                Description
 author              Project author name (use a comma to separate multiple names).
 defaultBranch       Git repository default branch (default: ``master``).
 description         Free text describing the workflow project.
+doi                 Project related publication DOI identifier.
 homePage            Project home page URL.
 mainScript          Project main script (default: ``main.nf``).
 name                Project short name.
@@ -556,48 +557,9 @@ maxTransferAttempts         Max number of downloads attempts from S3 (default: `
 Scope `cloud`
 -------------
 
-The ``cloud`` scope allows you to define the settings of the computing cluster that can be deployed in the cloud
-by Nextflow.
+.. note::
+    The ``cloud`` configuration scope has been retired.
 
-The following settings are available:
-
-=========================== ================
-Name                        Description
-=========================== ================
-bootStorageSize             Boot storage volume size e.g. ``10 GB``.
-imageId                     Identifier of the virtual machine(s) to launch e.g. ``ami-43f49030``.
-instanceRole                IAM role granting required permissions and authorizations in the launched instances.
-                            When specifying an IAM role no access/security keys are installed in the cluster deployed in the cloud.
-instanceType                Type of the virtual machine(s) to launch e.g. ``m4.xlarge``.
-instanceStorageMount        Ephemeral instance storage mount path e.g. ``/mnt/scratch``.
-instanceStorageDevice       Ephemeral instance storage device name e.g. ``/dev/xvdc`` (optional).
-keyName                     SSH access key name given by the cloud provider.
-keyHash                     SSH access public key hash string.
-keyFile                     SSH access public key file path.
-securityGroup               Identifier of the security group to be applied e.g. ``sg-df72b9ba``.
-sharedStorageId             Identifier of the shared file system instance e.g. ``fs-1803efd1``.
-sharedStorageMount          Mount path of the shared file system e.g. ``/mnt/efs``.
-subnetId                    Identifier of the VPC subnet to be applied e.g. ``subnet-05222a43``.
-spotPrice                   Price bid for spot/preemptive instances.
-userName                    SSH access user name (don't specify it to use the image default user name).
-autoscale                   See below.
-=========================== ================
-
-The autoscale configuration group provides the following settings:
-
-=========================== ================
-Name                        Description
-=========================== ================
-enabled                     Enable cluster auto-scaling.
-terminateWhenIdle           Enable cluster automatic scale-down i.e. instance terminations when idle (default: ``false``).
-idleTimeout                 Amount of time in idle state after which an instance is candidate to be terminated (default: ``5 min``).
-starvingTimeout             Amount of time after which one ore more tasks pending for execution trigger an auto-scale request (default: ``5 min``).
-minInstances                Minimum number of instances in the cluster.
-maxInstances                Maximum number of instances in the cluster.
-imageId                     Identifier of the virtual machine(s) to launch when new instances are added to the cluster.
-instanceType                Type of the virtual machine(s) to launch when new instances are added to the cluster.
-spotPrice                   Price bid for spot/preemptive instances launched while auto-scaling the cluster.
-=========================== ================
 
 .. _config-conda:
 

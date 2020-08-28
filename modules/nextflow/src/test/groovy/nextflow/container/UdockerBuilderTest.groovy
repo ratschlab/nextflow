@@ -1,4 +1,5 @@
 /*
+ * Copyright 2020, Seqera Labs
  * Copyright 2013-2019, Centre for Genomic Regulation (CRG)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -114,7 +115,7 @@ class UdockerBuilderTest extends Specification {
             .stripIndent().trim()
 
         builder.getRemoveCommand() == null
-        builder.getKillCommand() == null
+        builder.getKillCommand() == '[[ "$pid" ]] && kill $pid 2>/dev/null'
     }
 
     def 'should append the run command line with launcher' () {
@@ -131,7 +132,7 @@ class UdockerBuilderTest extends Specification {
                 .stripIndent().trim()
 
         builder.getRemoveCommand() == null
-        builder.getKillCommand() == null
+        builder.getKillCommand() == '[[ "$pid" ]] && kill $pid 2>/dev/null'
 
 
         when:
@@ -146,7 +147,7 @@ class UdockerBuilderTest extends Specification {
                 .stripIndent().trim()
 
         builder.getRemoveCommand() == null
-        builder.getKillCommand() == null
+        builder.getKillCommand() == '[[ "$pid" ]] && kill $pid 2>/dev/null'
     }
 
 }

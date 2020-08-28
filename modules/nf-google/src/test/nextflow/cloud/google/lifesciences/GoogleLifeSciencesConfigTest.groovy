@@ -1,4 +1,5 @@
 /*
+ * Copyright 2020, Seqera Labs
  * Copyright 2013-2019, Centre for Genomic Regulation (CRG)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -168,6 +169,18 @@ class GoogleLifeSciencesConfigTest extends Specification {
         config.sshDaemon
     }
 
+    def 'should config usePrivateAddress' () {
+        when:
+        def config = GoogleLifeSciencesConfig.fromSession0([google:[project:'foo', region:'x', lifeSciences: [:]]])
+        then:
+        !config.usePrivateAddress
+
+        when:
+        config = GoogleLifeSciencesConfig.fromSession0([google:[project:'foo', region:'x', lifeSciences: [usePrivateAddress:true]]])
+        then:
+        config.usePrivateAddress
+    }
+
     def 'should config debug mode' () {
         when:
         def config = GoogleLifeSciencesConfig.fromSession0([google:[project:'foo', region:'x', lifeSciences: [:]]])
@@ -214,6 +227,32 @@ class GoogleLifeSciencesConfigTest extends Specification {
         'us-central1'   | 'us-central1'
         'us-any'        | 'us-central1'
         'foo'           | 'us-central1'
+    }
+
+    def 'should set requester pays' () {
+        when:
+        def config = GoogleLifeSciencesConfig.fromSession0([google:[project:'foo', region:'x', lifeSciences: [:]]])
+        then:
+        config.enableRequesterPaysBuckets == false
+
+        when:
+        config = GoogleLifeSciencesConfig.fromSession0([google:[project:'foo', region:'x', enableRequesterPaysBuckets:true]])
+        then:
+        config.enableRequesterPaysBuckets == true
+
+    }
+    
+    def 'should config cpuPlatform' () {
+        when:
+        def config = GoogleLifeSciencesConfig.fromSession0([google:[project:'foo', region:'x', lifeSciences: [:]]])
+        then:
+        config.cpuPlatform == null
+
+        when:
+        config = GoogleLifeSciencesConfig.fromSession0([google:[project:'foo', region:'x', lifeSciences: [cpuPlatform:'Intel Skylake']]])
+        then:
+        config.cpuPlatform == 'Intel Skylake'
+
     }
 
 }
