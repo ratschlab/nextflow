@@ -28,7 +28,7 @@ mm =
 endif 
 
 compile:
-	./gradlew compile exportClasspath
+	./gradlew -Dhttp.proxyHost=127.0.0.1 -Dhttp.proxyPort=4384 -Dhttps.proxyHost=127.0.0.1 -Dhttps.proxyPort=4384 compile exportClasspath
 	@echo "DONE `date`"
 
 clean:
