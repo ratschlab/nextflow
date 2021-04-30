@@ -1,5 +1,5 @@
 /*
- * Copyright 2020, Seqera Labs
+ * Copyright 2020-2021, Seqera Labs
  * Copyright 2013-2019, Centre for Genomic Regulation (CRG)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,6 +16,8 @@
  */
 
 package nextflow
+
+import static nextflow.Const.*
 
 import java.nio.file.Files
 import java.nio.file.Path
@@ -46,6 +48,7 @@ import nextflow.executor.ExecutorFactory
 import nextflow.extension.CH
 import nextflow.file.FileHelper
 import nextflow.file.FilePorter
+import nextflow.plugin.Plugins
 import nextflow.processor.ErrorStrategy
 import nextflow.processor.TaskFault
 import nextflow.processor.TaskHandler
@@ -72,8 +75,6 @@ import nextflow.util.NameGenerator
 import nextflow.util.VersionNumber
 import sun.misc.Signal
 import sun.misc.SignalHandler
-import static nextflow.Const.APP_VER
-import static nextflow.util.SpuriousDeps.shutdownS3Uploader
 /**
  * Holds the information on the current execution
  *
@@ -146,6 +147,11 @@ class Session implements ISession {
     String runName
 
     /**
+     * Enable stub run mode
+     */
+    boolean stubRun
+
+    /**
      * Folder(s) containing libs and classes to be added to the classpath
      */
     List<Path> libDir
@@ -158,6 +164,11 @@ class Session implements ISession {
     String profile
 
     String commandLine
+
+    /*
+     * Project repository commit ID
+     */
+    String commitId
 
     /**
      * Local path where script generated classes are saved
@@ -305,6 +316,9 @@ class Session implements ISession {
         this.runName = config.runName ?: NameGenerator.next()
         log.debug "Run name: $runName"
 
+        // -- dry run
+        this.stubRun = config.stubRun
+
         // -- normalize taskConfig object
         if( config.process == null ) config.process = [:]
         if( config.env == null ) config.env = [:]
@@ -352,7 +366,7 @@ class Session implements ISession {
 
         // set the byte-code target directory
         this.classesDir = FileHelper.createLocalDir()
-        this.executorFactory = new ExecutorFactory()
+        this.executorFactory = new ExecutorFactory(Plugins.manager)
         this.observers = createObservers()
         this.statsEnabled = observers.any { it.enableMetrics() }
         this.workflowMetadata = new WorkflowMetadata(this, scriptFile)
@@ -390,7 +404,7 @@ class Session implements ISession {
         statsObserver = new WorkflowStatsObserver(this)
         result.add(statsObserver)
 
-        for( TraceObserverFactory f : ServiceLoader.load(TraceObserverFactory) ) {
+        for( TraceObserverFactory f : Plugins.getExtensions(TraceObserverFactory) ) {
             log.debug "Observer factory: ${f.class.simpleName}"
             result.addAll(f.create(this))
         }
@@ -612,8 +626,8 @@ class Session implements ISession {
             // -- close db
             cache?.close()
 
-            // -- shutdown s3 uploader
-            shutdownS3Uploader()
+            // -- shutdown plugins
+            Plugins.stop()
 
             // -- cleanup script classes dir
             classesDir.deleteDir()
@@ -1094,6 +1108,7 @@ class Session implements ISession {
         getContainerConfig0('shifter', engines)
         getContainerConfig0('udocker', engines)
         getContainerConfig0('singularity', engines)
+        getContainerConfig0('charliecloud', engines)
 
         def enabled = engines.findAll { it.enabled?.toString() == 'true' }
         if( enabled.size() > 1 ) {

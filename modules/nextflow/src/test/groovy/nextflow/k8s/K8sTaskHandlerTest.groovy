@@ -1,5 +1,5 @@
 /*
- * Copyright 2020, Seqera Labs
+ * Copyright 2020-2021, Seqera Labs
  * Copyright 2013-2019, Centre for Genomic Regulation (CRG)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -37,8 +37,6 @@ import nextflow.processor.TaskRun
 import nextflow.processor.TaskStatus
 import nextflow.util.MemoryUnit
 import spock.lang.Specification
-import spock.lang.Unroll
-
 /**
  *
  * @author Paolo Di Tommaso <paolo.ditommaso@gmail.com>
@@ -72,7 +70,7 @@ class K8sTaskHandlerTest extends Specification {
         1 * task.getContainer() >> 'debian:latest'
         1 * task.getWorkDir() >> WORK_DIR
         1 * task.getConfig() >> config
-        1 * config.get('cpus') >> null
+        1 * config.getCpus() >> 0
         1 * config.getMemory() >> null
         1 * client.getConfig() >> new ClientConfig()
         result == [ apiVersion: 'v1',
@@ -107,7 +105,7 @@ class K8sTaskHandlerTest extends Specification {
         1 * task.getContainer() >> 'debian:latest'
         1 * task.getWorkDir() >> WORK_DIR
         1 * task.getConfig() >> config
-        1 * config.get('cpus') >> 1
+        1 * config.getCpus() >> 1
         1 * config.getMemory() >> null
         1 * client.getConfig() >> new ClientConfig()
         result == [ apiVersion: 'v1',
@@ -120,7 +118,7 @@ class K8sTaskHandlerTest extends Specification {
                                      image:'debian:latest',
                                      command:['/bin/bash', '-ue','.command.run'],
                                      workingDir:'/some/work/dir',
-                                     resources:[ limits:[cpu:1] ],
+                                     resources:[ requests: [cpu:1], limits:[cpu:1] ],
                                      env: [  [name:'NXF_OWNER', value:'501:502'] ]
                                     ]
                             ]
@@ -139,7 +137,7 @@ class K8sTaskHandlerTest extends Specification {
         1 * task.getContainer() >> 'user/alpine:1.0'
         1 * task.getWorkDir() >> WORK_DIR
         1 * task.getConfig() >> config
-        1 * config.get('cpus') >> 4
+        1 * config.getCpus() >> 4
         1 * config.getMemory() >> MemoryUnit.of('16GB')
         1 * client.getConfig() >> new ClientConfig(namespace: 'namespace-x')
         result == [ apiVersion: 'v1',
@@ -152,7 +150,7 @@ class K8sTaskHandlerTest extends Specification {
                                      image:'user/alpine:1.0',
                                      command:['/bin/bash', '-ue', '.command.run'],
                                      workingDir:'/some/work/dir',
-                                     resources:[ limits:[cpu:4, memory:'16384Mi'] ]
+                                     resources:[ requests: [cpu:4, memory:'16384Mi'], limits:[cpu:4, memory:'16384Mi'] ]
                                     ]
                             ]
                     ]
@@ -198,7 +196,9 @@ class K8sTaskHandlerTest extends Specification {
                                     [name:'nf-123',
                                      image:'debian:latest',
                                      command:['/bin/bash', '-ue','.command.run'],
-                                     workingDir:'/some/work/dir']
+                                     workingDir:'/some/work/dir',
+                                     resources:[requests:[cpu:1], limits:[cpu:1]]
+                                    ]
                             ]
                     ]
         ]
@@ -286,7 +286,7 @@ class K8sTaskHandlerTest extends Specification {
         1 * task.getContainer() >> 'debian:latest'
         1 * task.getWorkDir() >> WORK_DIR
         1 * task.getConfig() >> config
-        1 * config.get('cpus') >> null
+        1 * config.getCpus() >> 0
         1 * config.getMemory() >> null
         1 * client.getConfig() >> new ClientConfig()
         2 * podOptions.getVolumeClaims() >> CLAIMS
@@ -323,7 +323,7 @@ class K8sTaskHandlerTest extends Specification {
         1 * task.getContainer() >> 'debian:latest'
         1 * task.getWorkDir() >> WORK_DIR
         1 * task.getConfig() >> config
-        1 * config.get('cpus') >> null
+        1 * config.getCpus() >> 0
         1 * config.getMemory() >> null
         1 * client.getConfig() >> new ClientConfig()
 
@@ -425,6 +425,11 @@ class K8sTaskHandlerTest extends Specification {
         def task = new TaskRun()
         def client = Mock(K8sClient)
         def handler = Spy(K8sTaskHandler)
+        def termState = [ reason: "Completed",
+                          startedAt: "2018-01-13T10:09:36Z",
+                          finishedAt: "2018-01-13T10:19:36Z",
+                          exitCode: 0 ]
+        def fullState = [terminated: termState]
         handler.task = task
         handler.client = client
         handler.podName = POD_NAME
@@ -448,7 +453,8 @@ class K8sTaskHandlerTest extends Specification {
         when:
         result = handler.checkIfCompleted()
         then:
-        1 * handler.getState() >> [terminated: ["reason": "Completed", "finishedAt": "2018-01-13T10:19:36Z", exitCode: 0]]
+        1 * handler.getState() >> fullState
+        1 * handler.updateTimestamps(termState)
         1 * handler.readExitFile() >> EXIT_STATUS
         1 * handler.deletePodIfSuccessful(task) >> null
         1 * handler.savePodLogOnError(task) >> null
@@ -456,6 +462,8 @@ class K8sTaskHandlerTest extends Specification {
         handler.task.@stdout == OUT_FILE
         handler.task.@stderr == ERR_FILE
         handler.status == TaskStatus.COMPLETED
+        handler.startTimeMillis == 1515838176000
+        handler.completeTimeMillis == 1515838776000
         result == true
 
     }
@@ -721,5 +729,57 @@ class K8sTaskHandlerTest extends Specification {
         1 * taskConfig.getPodOptions() >> new PodOptions([[env:'HELLO', value:'WORLD']])
         1 * k8sConfig.getPodOptions() >> new PodOptions([ [env:'BRAVO', value:'HOTEL'] ])
         opts == new PodOptions([[env:'HELLO', value:'WORLD'], [env:'BRAVO', value:'HOTEL']])
+    }
+
+    def 'should update startTimeMillis and completeTimeMillis with terminated state' () {
+
+        given:
+        def handler = Spy(K8sTaskHandler)
+        def termState = [ startedAt: "2018-01-13T10:09:36Z",
+                          finishedAt: "2018-01-13T10:19:36Z" ]
+
+        when:
+        handler.updateTimestamps(termState)
+        then:
+        handler.startTimeMillis == 1515838176000
+        handler.completeTimeMillis == 1515838776000
+    }
+
+    def 'should update timestamps with current time with missing or malformed time' () {
+
+        given:
+        def handler = Spy(K8sTaskHandler)
+        def malformedTime = [ startedAt: "2018-01-13 10:09:36",
+                              finishedAt: "2018-01-13T10:19:36Z" ]
+
+        def garbage = [ what: "nope" ]
+
+        when:
+        handler.updateTimestamps(malformedTime)
+        then:
+        handler.startTimeMillis > 0 // confirms that timestamps have been updated
+        handler.startTimeMillis <= handler.completeTimeMillis // confirms that order is sane
+
+        when:
+        handler.updateTimestamps(garbage)
+        then:
+        handler.startTimeMillis > 0
+        handler.startTimeMillis <= handler.completeTimeMillis
+    }
+
+    def 'should not update timestamps with malformed time and when startTimeMillis already set' () {
+
+        given:
+        def handler = Spy(K8sTaskHandler)
+        handler.startTimeMillis = 10
+        handler.completeTimeMillis = 20
+        def malformedTime = [ startedAt: "2018-01-13 10:09:36",
+                              finishedAt: "2018-01-13T10:19:36Z" ]
+
+        when:
+        handler.updateTimestamps(malformedTime)
+        then:
+        handler.startTimeMillis == 10
+        handler.completeTimeMillis == 20
     }
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2020, Seqera Labs
+ * Copyright 2020-2021, Seqera Labs
  * Copyright 2013-2019, Centre for Genomic Regulation (CRG)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -23,10 +23,10 @@ import groovy.transform.PackageScope
 import groovy.util.logging.Slf4j
 import nextflow.Const
 import nextflow.NF
+import nextflow.ast.NextflowDSLImpl
 import nextflow.exception.ConfigParseException
 import nextflow.exception.IllegalConfigException
 import nextflow.exception.IllegalDirectiveException
-import nextflow.exception.ScriptRuntimeException
 import nextflow.executor.BashWrapperBuilder
 import nextflow.processor.ConfigList
 import nextflow.processor.ErrorStrategy
@@ -48,7 +48,6 @@ class ProcessConfig implements Map<String,Object>, Cloneable {
             'accelerator',
             'afterScript',
             'beforeScript',
-            'echo',
             'cache',
             'conda',
             'cpus',
@@ -200,8 +199,12 @@ class ProcessConfig implements Map<String,Object>, Cloneable {
     }
 
     private void checkName(String name) {
-        if( DIRECTIVES.contains(name) ) return
-        if( name == 'when' ) return
+        if( DIRECTIVES.contains(name) )
+            return
+        if( name == NextflowDSLImpl.PROCESS_WHEN )
+            return
+        if( name == NextflowDSLImpl.PROCESS_STUB )
+            return
 
         String message = "Unknown process directive: `$name`"
         def alternatives = DIRECTIVES.closest(name)
@@ -588,7 +591,6 @@ class ProcessConfig implements Map<String,Object>, Cloneable {
     OutParam _out_stdout( obj = null ) {
         def result = new StdOutParam(this).bind('-')
         if( obj ) {
-            if(NF.isDsl2()) throw new ScriptRuntimeException("Process `stdout` output channel should not be specified when using DSL 2 -- Use `stdout()` instead")
             result.into(obj)
         }
         result

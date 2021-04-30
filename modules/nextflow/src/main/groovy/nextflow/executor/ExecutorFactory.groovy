@@ -25,8 +25,8 @@ import nextflow.k8s.K8sExecutor
 import nextflow.script.BodyDef
 import nextflow.script.ProcessConfig
 import nextflow.script.ScriptType
-import nextflow.util.ServiceDiscover
 import nextflow.util.ServiceName
+import org.pf4j.PluginManager
 /**
  * Helper class to create {@link Executor} objects
  *
@@ -64,20 +64,39 @@ class ExecutorFactory {
 
     private Map<Class<? extends Executor>,? extends Executor> executors = new HashMap<>()
 
+    @PackageScope Map<Class<? extends Executor>,? extends Executor> getExecutors() { executors }
+
     ExecutorFactory() {
+        init0(Collections.<Class<Executor>>emptyList())
+    }
+
+    ExecutorFactory(PluginManager manager) {
+        if( manager!=null ) {
+            final executors = manager.getExtensionClasses(Executor)
+            log.debug "Extension executors providers=${executors.simpleName}"
+            init0(executors)
+        }
+        else {
+            log.warn "Plugin manager not initialised -- Using built-in executors"
+            init0(Collections.<Class<Executor>>emptyList())
+        }
+    }
+
+    private void init0(List<Class<? extends Executor>> executorClasses) {
         executorsMap = new HashMap(20)
         // add built-in executors
         executorsMap.putAll(BUILT_IN_EXECUTORS)
         // discover non-core executors
-        for( Class<Executor> clazz : ServiceDiscover.load(Executor) ) {
+        for( Class<Executor> clazz : executorClasses ) {
             log.trace "Discovered executor class: ${clazz.toString()}"
             final name = findNameByClass(clazz)
             final current = executorsMap.get(name)
             if( current ) {
-                if( current.getAnnotation(ServiceName)?.important() )
-                    log.debug "Executor ${current.getClass().getSimpleName()} has priority over ${clazz}"
-                else
-                    log.debug "Replacing executor ${executorsMap[name]} by ${clazz}"
+                if( current.getAnnotation(ServiceName)?.important() ) {
+                    log.debug "Executor ${current.getSimpleName()} has priority - skipping ${clazz}"
+                    continue
+                }
+                log.debug "Replacing executor ${current.getSimpleName()} with ${clazz}"
             }
             executorsMap.put(name, clazz)
         }

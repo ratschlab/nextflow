@@ -1,5 +1,5 @@
 /*
- * Copyright 2020, Seqera Labs
+ * Copyright 2020-2021, Seqera Labs
  * Copyright 2013-2019, Centre for Genomic Regulation (CRG)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -82,8 +82,12 @@ class PbsProExecutor extends PbsExecutor {
 
     @Override
     protected List<String> queueStatusCommand(Object queue) {
-        String cmd = 'qstat -f'
-        if( queue ) cmd += ' ' + queue
+        String cmd = 'qstat -f ' 
+        if( queue ) {
+            cmd += queue
+        } else {
+            cmd += '$( qstat -B | egrep -v \'(^Server|^---)\' | awk -v ORS=\' \' \'{print \"@\"\$1}\' )'
+        }
         return ['bash','-c', "set -o pipefail; $cmd | { egrep '(Job Id:|job_state =)' || true; }".toString()]
     }
 

@@ -1,5 +1,5 @@
 /*
- * Copyright 2020, Seqera Labs
+ * Copyright 2020-2021, Seqera Labs
  * Copyright 2013-2019, Centre for Genomic Regulation (CRG)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,7 +17,6 @@
 
 package nextflow.cli
 
-import nextflow.util.SpuriousDeps
 import static nextflow.Const.*
 
 import java.lang.reflect.Field
@@ -38,6 +37,7 @@ import nextflow.exception.ScriptCompilationException
 import nextflow.exception.ScriptRuntimeException
 import nextflow.util.Escape
 import nextflow.util.LoggerHelper
+import nextflow.util.SpuriousDeps
 import org.eclipse.jgit.api.errors.GitAPIException
 /**
  * Main application entry point. It parses the command line and
@@ -101,7 +101,8 @@ class Launcher {
                 new CmdNode(),
                 new CmdView(),
                 new CmdHelp(),
-                new CmdSelfUpdate()
+                new CmdSelfUpdate(),
+                new CmdPlugins()
         ]
 
         // legacy command
@@ -247,6 +248,10 @@ class Launcher {
                 normalized << '-'
             }
 
+            else if( current == '-with-charliecloud' && (i==args.size() || args[i].startsWith('-'))) {
+                normalized << '-'
+            }
+
             else if( current == '-with-weblog' && (i==args.size() || args[i].startsWith('-'))) {
                 normalized << '-'
             }
@@ -256,6 +261,10 @@ class Launcher {
             }
 
             else if( current == '-ansi-log' && (i==args.size() || args[i].startsWith('-'))) {
+                normalized << 'true'
+            }
+
+            else if( (current == '-stub' || current == '-stub-run') && (i==args.size() || args[i].startsWith('-'))) {
                 normalized << 'true'
             }
 

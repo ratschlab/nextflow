@@ -1,5 +1,5 @@
 /*
- * Copyright 2020, Seqera Labs
+ * Copyright 2020-2021, Seqera Labs
  * Copyright 2013-2019, Centre for Genomic Regulation (CRG)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -23,6 +23,7 @@ import java.nio.file.Path
 import groovy.transform.CompileStatic
 import groovy.transform.PackageScope
 import groovy.util.logging.Slf4j
+import nextflow.container.CharliecloudBuilder
 import nextflow.container.ContainerBuilder
 import nextflow.container.DockerBuilder
 import nextflow.container.PodmanBuilder
@@ -137,7 +138,7 @@ class BashWrapperBuilder {
     }
 
     protected boolean shouldUnstageOutputs() {
-        return workDir != targetDir
+        return targetDir && workDir!=targetDir
     }
 
     protected boolean fixOwnership() {
@@ -261,7 +262,7 @@ class BashWrapperBuilder {
         binding.launch_cmd = getLaunchCommand(interpreter,env)
         binding.stage_cmd = getStageCommand()
         binding.unstage_cmd = getUnstageCommand()
-        binding.unstage_controls = changeDir ? getUnstageControls() : null
+        binding.unstage_controls = changeDir || shouldUnstageOutputs() ? getUnstageControls() : null
 
         if( changeDir || shouldUnstageOutputs() ) {
             binding.unstage_outputs = copyStrategy.getUnstageOutputFilesScript(outputFiles,targetDir)
@@ -404,7 +405,7 @@ class BashWrapperBuilder {
         String result = ''
         // -- cleanup the scratch dir
         if( scratch && cleanup != false ) {
-            result += (!containerBuilder ? 'rm -rf $NXF_SCRATCH || true' : '(sudo -n true && sudo rm -rf "$NXF_SCRATCH" || rm -rf "$NXF_SCRATCH")&>/dev/null || true')
+            result += (containerBuilder !instanceof DockerBuilder ? 'rm -rf $NXF_SCRATCH || true' : '(sudo -n true && sudo rm -rf "$NXF_SCRATCH" || rm -rf "$NXF_SCRATCH")&>/dev/null || true')
             result += '\n'
         }
         // -- remove the container in this way because 'docker run --rm'  fail in some cases -- see https://groups.google.com/d/msg/docker-user/0Ayim0wv2Ls/-mZ-ymGwg8EJ
@@ -437,8 +438,14 @@ class BashWrapperBuilder {
             return new UdockerBuilder(containerImage)
         if( engine == 'shifter' )
             return new ShifterBuilder(containerImage)
+        if( engine == 'charliecloud' )
+            return new CharliecloudBuilder(containerImage)
         //
         throw new IllegalArgumentException("Unknown container engine: $engine")
+    }
+
+    protected boolean getAllowContainerMounts() {
+        return true
     }
 
     /**
@@ -458,22 +465,27 @@ class BashWrapperBuilder {
          * initialise the builder
          */
         // do not mount inputs when they are copied in the task work dir -- see #1105
-        if( stageInMode != 'copy' )
+        if( stageInMode != 'copy' && allowContainerMounts )
             builder.addMountForInputs(inputFiles)
 
-        builder.addMount(binDir)
+        if( allowContainerMounts )
+            builder.addMount(binDir)
 
         if(this.containerMount)
             builder.addMount(containerMount)
 
         // task work dir
-        builder.setWorkDir(workDir)
+        if( allowContainerMounts )
+            builder.setWorkDir(workDir)
 
         // set the name
         builder.setName('$NXF_BOXID')
 
         if( this.containerMemory )
             builder.setMemory(containerMemory)
+
+        if( this.containerCpus )
+            builder.setCpus(containerCpus)
 
         if( this.containerCpuset )
             builder.addRunOptions(containerCpuset)
@@ -515,6 +527,11 @@ class BashWrapperBuilder {
         if( containerOptions ) {
             builder.addRunOptions(containerOptions)
         }
+
+        // The current work directory should be mounted only when
+        // the task is executed in a temporary scratch directory (ie changeDir != null)
+        // Applying this strategy only to podman for now. See https://github.com/nextflow-io/nextflow/issues/1710
+        builder.addMountWorkDir( engine!='podman' || changeDir )
 
         builder.build()
         return builder

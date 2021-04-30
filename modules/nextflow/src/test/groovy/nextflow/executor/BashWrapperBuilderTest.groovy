@@ -1,5 +1,5 @@
 /*
- * Copyright 2020, Seqera Labs
+ * Copyright 2020-2021, Seqera Labs
  * Copyright 2013-2019, Centre for Genomic Regulation (CRG)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -199,6 +199,7 @@ class BashWrapperBuilderTest extends Specification {
         bash.getContainerImage() >> 'foo/bar'
         bash.getContainerMount() >> null
         bash.getContainerMemory() >> null
+        bash.getContainerCpus() >> null
         bash.getContainerCpuset() >> null
         bash.getContainerOptions() >> null
 
@@ -737,7 +738,7 @@ class BashWrapperBuilderTest extends Specification {
                 containerConfig: [enabled: true, engine: 'singularity'] as ContainerConfig ).makeBinding()
 
         then:
-        binding.launch_cmd == 'set +u; env - PATH="$PATH" SINGULARITYENV_TMP="$TMP" SINGULARITYENV_TMPDIR="$TMPDIR" singularity exec docker:ubuntu:latest /bin/bash -c "cd $PWD; eval $(nxf_container_env); /bin/bash -ue /work/dir/.command.sh"'
+        binding.launch_cmd == 'set +u; env - PATH="$PATH" ${TMP:+SINGULARITYENV_TMP="$TMP"} ${TMPDIR:+SINGULARITYENV_TMPDIR="$TMPDIR"} singularity exec docker:ubuntu:latest /bin/bash -c "cd $PWD; eval $(nxf_container_env); /bin/bash -ue /work/dir/.command.sh"'
         binding.cleanup_cmd == ""
         binding.kill_cmd == '[[ "$pid" ]] && kill $pid 2>/dev/null'
 
@@ -864,5 +865,34 @@ class BashWrapperBuilderTest extends Specification {
         binding.stage_cmd == 'nxf_stage'
         binding.unstage_cmd == 'nxf_unstage'
         
+    }
+
+
+    def 'should create wrapper with podman' () {
+        when:
+        def binding = newBashWrapperBuilder(
+                containerImage: 'busybox',
+                containerEnabled: true,
+                containerConfig: [engine: 'podman', enabled: true] ).makeBinding()
+
+        then:
+        binding.launch_cmd == 'podman run -i -v /work/dir:/work/dir -w "$PWD" --entrypoint /bin/bash --name $NXF_BOXID busybox -c "/bin/bash -ue /work/dir/.command.sh"'
+        binding.cleanup_cmd == 'podman rm $NXF_BOXID &>/dev/null || true\n'
+        binding.kill_cmd == 'podman kill $NXF_BOXID'
+    }
+
+
+    def 'should create wrapper with podman and scratch' () {
+        when:
+        def binding = newBashWrapperBuilder(
+                scratch: true,
+                containerImage: 'busybox',
+                containerEnabled: true,
+                containerConfig: [engine: 'podman', enabled: true] ).makeBinding()
+
+        then:
+        binding.launch_cmd == 'podman run -i -v /work/dir:/work/dir -v "$PWD":"$PWD" -w "$PWD" --entrypoint /bin/bash --name $NXF_BOXID busybox -c "/bin/bash -ue /work/dir/.command.sh"'
+        binding.cleanup_cmd == 'rm -rf $NXF_SCRATCH || true\npodman rm $NXF_BOXID &>/dev/null || true\n'
+        binding.kill_cmd == 'podman kill $NXF_BOXID'
     }
 }

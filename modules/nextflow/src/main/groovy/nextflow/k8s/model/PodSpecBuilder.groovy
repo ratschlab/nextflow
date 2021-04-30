@@ -1,5 +1,5 @@
 /*
- * Copyright 2020, Seqera Labs
+ * Copyright 2020-2021, Seqera Labs
  * Copyright 2013-2019, Centre for Genomic Regulation (CRG)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -338,8 +338,7 @@ class PodSpecBuilder {
 
         // add resources
         if( res ) {
-            Map limits = [limits: res]
-            container.resources = limits
+            container.resources = [requests: res, limits: new HashMap<>(res)]
         }
 
         // add gpu settings
@@ -366,6 +365,8 @@ class PodSpecBuilder {
             final claim = [name: name, mountPath: entry.mountPath ]
             if( entry.subPath )
                 claim.subPath = entry.subPath
+            if( entry.readOnly )
+                claim.readOnly = entry.readOnly
             mounts << claim
         }
 
@@ -488,7 +489,7 @@ class PodSpecBuilder {
             str = str.substring(0,63)
         }
         str = str.replaceAll(/[^a-zA-Z0-9\.\_\-]+/, '_')
-        str = str.replaceAll(/^[^a-zA-Z]+/, '')
+        str = str.replaceAll(/^[^a-zA-Z0-9]+/, '')
         str = str.replaceAll(/[^a-zA-Z0-9]+$/, '')
         return str
     }

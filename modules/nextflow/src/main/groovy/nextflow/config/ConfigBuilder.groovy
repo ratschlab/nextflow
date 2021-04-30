@@ -1,5 +1,5 @@
 /*
- * Copyright 2020, Seqera Labs
+ * Copyright 2020-2021, Seqera Labs
  * Copyright 2013-2019, Centre for Genomic Regulation (CRG)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -25,6 +25,7 @@ import java.nio.file.Paths
 import groovy.transform.PackageScope
 import groovy.util.logging.Slf4j
 import nextflow.Const
+import nextflow.NF
 import nextflow.cli.CliOptions
 import nextflow.cli.CmdConfig
 import nextflow.cli.CmdNode
@@ -76,6 +77,8 @@ class ConfigBuilder {
     boolean showMissingVariables
 
     Map<ConfigObject, String> emptyVariables = new LinkedHashMap<>(10)
+
+    Map<String,String> env = new HashMap<>(System.getenv())
 
     List<String> warnings = new ArrayList<>(10);
 
@@ -205,6 +208,7 @@ class ConfigBuilder {
 
         /**
          * Config file in the pipeline base dir
+         * This config file name should be predictable, therefore cannot be overridden
          */
         def base = null
         if( baseDir && baseDir != currentDir ) {
@@ -217,8 +221,10 @@ class ConfigBuilder {
 
         /**
          * Local or user provided file
+         * Default config file name can be overridden with `NXF_CONFIG_FILE` env variable
          */
-        def local = currentDir.resolve('nextflow.config')
+        def configFileName = env.get('NXF_CONFIG_FILE') ?: 'nextflow.config'
+        def local = currentDir.resolve(configFileName)
         if( local.exists() && local != base ) {
             log.debug "Found config local: $local"
             result << local
@@ -311,14 +317,22 @@ class ConfigBuilder {
         buildGivenFiles(files as List<Path>)
     }
 
+    protected Map configVars() {
+        final binding = new HashMap(10)
+        binding.put('baseDir', baseDir)
+        binding.put('projectDir', baseDir)
+        binding.put('launchDir', Paths.get('.').toRealPath())
+        return binding
+    }
+
     protected ConfigObject buildConfig0( Map env, List configEntries )  {
         assert env != null
 
         final slurper = new ConfigParser().setRenderClosureAsString(showClosures)
         ConfigObject result = new ConfigObject()
 
-        if( cmdRun?.params )
-            slurper.setParams(cmdRun.parsedParams)
+        if( cmdRun && (cmdRun.hasParams()) )
+            slurper.setParams(cmdRun.parsedParams(configVars()))
 
         // add the user specified environment to the session env
         env.sort().each { name, value -> result.env.put(name,value) }
@@ -329,9 +343,7 @@ class ConfigBuilder {
             // in the current environment
             final binding = new HashMap(System.getenv())
             binding.putAll(env)
-            binding.put('baseDir', baseDir)
-            binding.put('projectDir', baseDir)
-            binding.put('launchDir', Paths.get('.').toRealPath())
+            binding.putAll(configVars())
 
             slurper.setBinding(binding)
 
@@ -508,6 +520,9 @@ class ConfigBuilder {
         if( cmdRun.runName )
             config.runName = cmdRun.runName
 
+        if( cmdRun.stubRun )
+            config.stubRun = cmdRun.stubRun
+
         // -- sets the working directory
         if( cmdRun.workDir )
             config.workDir = cmdRun.workDir
@@ -636,8 +651,8 @@ class ConfigBuilder {
         }
 
         // -- add the command line parameters to the 'taskConfig' object
-        if( cmdRun.params || cmdRun.paramsFile )
-            config.params.putAll( cmdRun.parsedParams )
+        if( cmdRun.hasParams() )
+            config.params = mergeMaps( (Map)config.params, cmdRun.parsedParams(configVars()), NF.strictMode )
 
         if( cmdRun.withoutDocker && config.docker instanceof Map ) {
             // disable docker execution
@@ -655,6 +670,10 @@ class ConfigBuilder {
 
         if( cmdRun.withSingularity ) {
             configContainer(config, 'singularity', cmdRun.withSingularity)
+        }
+
+        if( cmdRun.withCharliecloud ) {
+            configContainer(config, 'charliecloud', cmdRun.withCharliecloud)
         }
     }
 
@@ -723,5 +742,50 @@ class ConfigBuilder {
         buildConfigObject().toMap()
     }
 
+    /**
+     * Merge two maps recursively avoiding keys to be overwritten
+     *
+     * @param config
+     * @param params
+     * @return a map resulting of merging result and right maps
+     */
+    protected Map mergeMaps(Map config, Map params, boolean strict, List keys=[]) {
+        if( config==null )
+            config = new LinkedHashMap()
+
+        for( Map.Entry entry : params ) {
+            final key = entry.key.toString()
+            final value = entry.value
+            final previous = getConfigVal0(config, key)
+            keys << entry.key
+            
+            if( previous==null ) {
+                config[key] = value
+            }
+            else if( previous instanceof Map && value instanceof Map ) {
+                mergeMaps(previous, value, strict, keys)
+            }
+            else {
+                if( previous instanceof Map || value instanceof Map ) {
+                    final msg = "Configuration setting type with key '${keys.join('.')}' does not match the parameter with the same key - Config value=$previous; parameter value=$value"
+                    if(strict)
+                        throw new AbortOperationException(msg)
+                    log.warn(msg)
+                }
+                config[key] = value
+            }
+        }
+
+        return config
+    }
+
+    private Object getConfigVal0(Map config, String key) {
+        if( config instanceof ConfigObject ) {
+            return config.isSet(key) ? config.get(key) : null
+        }
+        else {
+            return config.get(key)
+        }
+    }
 
 }

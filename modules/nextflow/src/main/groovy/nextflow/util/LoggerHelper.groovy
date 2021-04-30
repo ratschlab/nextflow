@@ -1,5 +1,5 @@
 /*
- * Copyright 2020, Seqera Labs
+ * Copyright 2020-2021, Seqera Labs
  * Copyright 2013-2019, Centre for Genomic Regulation (CRG)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,6 +20,7 @@ package nextflow.util
 import static nextflow.Const.*
 
 import java.lang.reflect.Field
+import java.nio.file.DirectoryNotEmptyException
 import java.nio.file.NoSuchFileException
 import java.nio.file.Path
 import java.util.concurrent.atomic.AtomicBoolean
@@ -392,7 +393,7 @@ class LoggerHelper {
         @Override
         String doLayout(ILoggingEvent event) {
             final session = (Session)Global.session
-            fmtEvent(event, session)
+            fmtEvent(event, session, true)
         }
     }
 
@@ -403,10 +404,10 @@ class LoggerHelper {
      * @param session Nextflow session object
      * @return the formatted logging message
      */
-    static protected String fmtEvent(ILoggingEvent event, Session session) {
+    static protected String fmtEvent(ILoggingEvent event, Session session, boolean newLine) {
         final buffer = new StringBuilder(512);
         if( event.level == Level.INFO ) {
-            buffer .append(event.getFormattedMessage()) .append(CoreConstants.LINE_SEPARATOR)
+            buffer .append(event.getFormattedMessage())
         }
         else if( event.level == Level.ERROR ) {
             def error = ( event.getThrowableProxy() instanceof ThrowableProxy
@@ -419,8 +420,10 @@ class LoggerHelper {
             buffer
                     .append( event.getLevel().toString() ) .append(": ")
                     .append(event.getFormattedMessage())
-                    .append(CoreConstants.LINE_SEPARATOR)
         }
+
+        if( newLine )
+            buffer.append(CoreConstants.LINE_SEPARATOR)
 
         return buffer.toString()
     }
@@ -451,6 +454,9 @@ class LoggerHelper {
         else if( fail instanceof NoSuchFileException ) {
             buffer.append("No such file: ${normalize(fail.message)}")
         }
+        else if( fail instanceof DirectoryNotEmptyException ) {
+            buffer.append("Unable to delete not empty directory: $fail.message")
+        }
         else if( message && message.startsWith(STARTUP_ERROR))  {
             buffer.append(formatStartupErrorMessage(message))
         }
@@ -469,11 +475,9 @@ class LoggerHelper {
         // extra formatting
         if( error ) {
             buffer.append(" -- Check script '${error[0]}' at line: ${error[1]} or see '${logFileName}' file for more details")
-            buffer.append(CoreConstants.LINE_SEPARATOR)
         }
         else if( logFileName && !quiet ) {
             buffer.append(" -- Check '${logFileName}' file for details")
-            buffer.append(CoreConstants.LINE_SEPARATOR)
         }
 
     }
@@ -606,7 +610,8 @@ class LoggerHelper {
     }
 
     /**
-     * Capture logging events and forward them to
+     * Capture logging events and forward them to. This is only used when
+     * ANSI interactive logging is enabled
      */
     static private class CaptureAppender extends AppenderBase<ILoggingEvent> {
 
@@ -615,7 +620,7 @@ class LoggerHelper {
             final session = (Session)Global.session
 
             try {
-                final message = fmtEvent(event, session).trim()
+                final message = fmtEvent(event, session, false)
                 final renderer = session?.ansiLogObserver
                 if( !renderer || !renderer.started || renderer.stopped )
                     System.out.println(message)

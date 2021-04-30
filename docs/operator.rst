@@ -17,14 +17,8 @@ Operators can be separated in to seven groups:
 * `Maths operators`_
 * `Other operators`_
 
-.. note:: The operators :ref:`operator-print`, :ref:`operator-println`, :ref:`operator-set` and ``operator-subscribe``
-  consume a channel and therefore need to be the last operator in a chain of combined operators. For example, you can't
-  connect operators in a way like::
-
-    Channel
-        .from( 'a', 'b', 'aa', 'bc', 3, 4.5 )
-        .println { it }
-        .filter( ~/^a.*/ )
+.. note:: The operators :ref:`operator-set` and ``operator-subscribe`` are *terminal* operators
+  and therefore need to be the last operator in a chain of combined operators.
 
 
 Filtering operators
@@ -50,13 +44,13 @@ The ``filter`` operator allows you to get only the items emitted by a channel th
 all the others. The filtering condition can be specified by using either a :ref:`regular expression <script-regexp>`,
 a literal value, a type `qualifier` (i.e. a Java class) or any boolean `predicate`.
 
-The following example shows how to filter a channel by using a regular expression that returns only string that
-begins with ``a``::
+The following example shows how to filter a channel by using a regular expression that returns only strings that
+begin with ``a``::
 
     Channel
         .from( 'a', 'b', 'aa', 'bc', 3, 4.5 )
         .filter( ~/^a.*/ )
-        .subscribe { println it }
+        .view()
 
 ::
 
@@ -70,7 +64,7 @@ are returned::
     Channel
         .from( 'a', 'b', 'aa', 'bc', 3, 4.5 )
         .filter( Number )
-        .subscribe { println it }
+        .view()
 
 ::
 
@@ -87,7 +81,7 @@ a channel emitting numbers so that the `odd` values are returned::
     Channel
         .from( 1, 2, 3, 4, 5 )
         .filter { it % 2 == 1 }
-        .subscribe { println it }
+        .view()
 
 ::
 
@@ -98,9 +92,7 @@ a channel emitting numbers so that the `odd` values are returned::
 
 .. tip:: In the above example the filter condition is wrapped in curly brackets,
   instead of round brackets, since it specifies a :ref:`closure <script-closure>` as the operator's argument.
-  This just is a language syntax-sugar for ``filter({ it.toString().size() == 1 })``
-
-
+  This is just a language syntax-sugar for ``filter({ it % 2 == 1 })``
 
 
 unique
@@ -113,7 +105,7 @@ For example::
     Channel
         .from( 1,1,1,5,7,7,7,3,3 )
         .unique()
-        .subscribe { println it }
+        .view()
 
 ::
 
@@ -129,7 +121,7 @@ For example::
     Channel
         .from(1,3,4,5)
         .unique { it % 2 }
-        .subscribe { println it }
+        .view()
 
 ::
 
@@ -193,26 +185,26 @@ a Java `class` type or any boolean `predicate`. For example::
     Channel
         .from( 1, 2, 3 )
         .first()
-        .subscribe { println it }
+        .view()
 
 
     // emits the first String value: 'a'
     Channel
         .from( 1, 2, 'a', 'b', 3 )
         .first( String )
-        .subscribe { println it }
+        .view()
 
     // emits the first item matching the regular expression: 'aa'
     Channel
         .from( 'a', 'aa', 'aaa' )
         .first( ~/aa.*/ )
-        .subscribe { println it }
+        .view()
 
     // emits the first item for which the predicate evaluates to true: 4
     Channel
         .from( 1,2,3,4,5 )
         .first { it > 3 }
-        .subscribe { println it }
+        .view()
 
 
 randomSample
@@ -224,17 +216,17 @@ from the channel to which is applied. For example::
   Channel
         .from( 1..100 )
         .randomSample( 10 )
-        .println()
+        .view()
 
 The above snippet will print 10 numbers in the range from 1 to 100.
 
-The operator supports a second parameter that allows to set the initial `seed` for the random number generator.
+The operator supports a second parameter that allows you to set the initial `seed` for the random number generator.
 By setting it, the ``randomSample`` operator will always return the same pseudo-random sequence. For example::
 
   Channel
         .from( 1..100 )
         .randomSample( 10, 234 )
-        .println()
+        .view()
 
 The above example will print 10 random numbers in the range between 1 and 100. At each run of the script, the same 
 sequence will be returned.
@@ -270,7 +262,7 @@ The ``last`` operator creates a channel that only returns the last item emitted 
     Channel
         .from( 1,2,3,4,5,6 )
         .last()
-        .subscribe { println it }
+        .view()
 
 ::
 
@@ -286,7 +278,7 @@ the condition specified is verified. For example::
   Channel
       .from( 3,2,1,5,1,5 )
       .until{ it==5 }
-      .println()
+      .view()
 
 ::
 
@@ -346,7 +338,7 @@ flatMap
 ----------
 
 The ``flatMap`` operator applies a function of your choosing to every item emitted by a channel, and
-returns the items so obtained as a new channel. Whenever the `mapping` function returns a list of items,
+returns the items so obtained as a new channel. Whereas the `mapping` function returns a list of items,
 this list is flattened so that each single item is emitted on its own.  
 
 For example::
@@ -375,7 +367,7 @@ Associative arrays are handled in the same way, so that each array entry is emit
 
     Channel.from ( 1, 2, 3 )
            .flatMap { it -> [ number: it, square: it*it ] }
-           .subscribe { println it.key + ': ' + it.value }
+           .view { it.key + ': ' + it.value }
 
 ::
 
@@ -406,7 +398,7 @@ For example::
     Channel
         .from( 1, 2, 3, 4, 5 )
         .reduce { a, b -> println "a: $a b: $b"; return a+b }
-        .subscribe { println "result = $it" }
+        .view { "result = $it" }
 
 
 It prints the following output::
@@ -443,7 +435,7 @@ For example::
     Channel
     	.from('hello','ciao','hola', 'hi', 'bonjour')
     	.groupBy { String str -> str[0] } 
-    	.subscribe { println it }
+    	.view()
 
 :: 
 
@@ -475,7 +467,7 @@ For example::
    Channel
         .from( [1,'A'], [1,'B'], [2,'C'], [3, 'B'], [1,'C'], [2, 'A'], [3, 'D'] )
         .groupTuple()
-        .subscribe { println it }
+        .view()
 
 It prints::
 
@@ -489,7 +481,7 @@ By default the first entry in the tuple is used a the grouping key. A different 
    Channel
         .from( [1,'A'], [1,'B'], [2,'C'], [3, 'B'], [1,'C'], [2, 'A'], [3, 'D'] )
         .groupTuple(by: 1)
-        .subscribe { println it }
+        .view()
 
 Grouping by the second value in each tuple the result is::
 
@@ -528,7 +520,7 @@ deep            Similar to the previous, but the hash number is created on actua
 
 .. tip:: You should always specify the number of expected element in each tuple using the ``size`` attribute
   to allow the ``groupTuple`` operator to stream the collected values as soon as possible. However there
-  are use cases in which each tuple has a different size depending grouping key. In this cases use the
+  are use cases in which each tuple has a different size depending on grouping key. In this case use the
   built-in function ``groupKey`` that allows you to create a special grouping key object to which it's possible
   to associate the group size for a given key.
 
@@ -552,7 +544,7 @@ the source channel into subsets:
     Channel
         .from( 1,2,3,1,2,3 ) 
         .buffer { it == 2 } 
-        .subscribe {  println it }
+        .view()
 
     // emitted values
     [1,2]
@@ -570,7 +562,7 @@ the source channel into subsets:
     Channel
         .from( 1,2,3,4,5,1,2,3,4,5,1,2 ) 
         .buffer( 2, 4 ) 
-        .subscribe {  println it }
+        .view()
 
     // emits bundles starting with '2' and ending with'4'
     [2,3,4]
@@ -583,7 +575,7 @@ the source channel into subsets:
     Channel
         .from( 1,2,3,1,2,3,1 ) 
         .buffer( size: 2 )
-        .subscribe {  println it }
+        .view()
         
     // emitted values 
     [1, 2]
@@ -596,7 +588,7 @@ add the parameter ``remainder`` specifying ``true``, for example::
     Channel
         .from( 1,2,3,1,2,3,1 )
         .buffer( size: 2, remainder: true )
-        .subscribe {  println it }
+        .view()
 
     // emitted values
     [1, 2]
@@ -612,7 +604,7 @@ add the parameter ``remainder`` specifying ``true``, for example::
     Channel
         .from( 1,2,3,4,5,1,2,3,4,5,1,2 ) 
         .buffer( size:3, skip:2 )
-        .subscribe {  println it }
+        .view()
         
     // emitted values 
     [3, 4, 5]
@@ -632,7 +624,7 @@ The ``collate`` operator transforms a channel in such a way that the emitted val
     Channel
         .from(1,2,3,1,2,3,1)
         .collate( 3 )
-        .subscribe { println it }
+        .view()
 
 ::
 
@@ -640,13 +632,13 @@ The ``collate`` operator transforms a channel in such a way that the emitted val
         [1, 2, 3]
         [1]
 
-As shown in the above example the last tuple may be incomplete e.g. contain less elements than the specified size.
+As shown in the above example the last tuple may be incomplete e.g. contain fewer elements than the specified size.
 If you want to avoid this, specify ``false`` as the second parameter. For example::
 
     Channel
         .from(1,2,3,1,2,3,1)
         .collate( 3, false )
-        .subscribe { println it }
+        .view()
 
 ::
 
@@ -660,7 +652,7 @@ are collected in tuples. For example::
     Channel
       .from(1,2,3,4)
       .collate( 3, 1 )
-      .subscribe { println it }
+      .view()
 
 ::
 
@@ -685,7 +677,7 @@ the resulting object as a sole emission. For example::
     Channel
         .from( 1, 2, 3, 4 )
         .collect()
-        .println()
+        .view()
 
     # outputs
     [1,2,3,4]
@@ -696,7 +688,7 @@ For example::
     Channel
         .from( 'hello', 'ciao', 'bonjour' )
         .collect { it.length() }
-        .println()
+        .view()
 
     # outputs
     [5,4,7]
@@ -723,7 +715,7 @@ is flattened so that each single entry is emitted separately by the resulting ch
     Channel
     	.from( [1,[2,3]], 4, [5,[6]] )
     	.flatten()
-    	.subscribe { println it }
+    	.view()
 
 :: 
     
@@ -798,7 +790,7 @@ of all tuple elements in each item. For example::
        ['b', ['s', 't'], ['x','y'] ]
        ])
        .transpose()
-       .println()
+       .view()
 
 The above snippet prints::
 
@@ -847,22 +839,18 @@ text entries. For example::
     Channel
         .from( 'alpha,beta,gamma\n10,20,30\n70,80,90' )
         .splitCsv()
-        .subscribe { row ->
-           println "${row[0]} - ${row[1]} - ${row[2]}"
-        }
+        .view { row -> "${row[0]} - ${row[1]} - ${row[2]}" }
 
 The above example shows hows CSV text is parsed and is split into single rows. Values can be accessed
 by its column index in the row object.
 
-When the CSV begins with a header line defining the columns names, you can specify the parameter ``header: true`` which
+When the CSV begins with a header line defining the column names, you can specify the parameter ``header: true`` which
 allows you to reference each value by its name, as shown in the following example::
 
     Channel
         .from( 'alpha,beta,gamma\n10,20,30\n70,80,90' )
         .splitCsv(header: true)
-        .subscribe { row ->
-           println "${row.alpha} - ${row.beta} - ${row.gamma}"
-        }
+        .view { row -> "${row.alpha} - ${row.beta} - ${row.gamma}" }
 
 It will print ::
 
@@ -876,9 +864,7 @@ as shown below::
     Channel
         .from( 'alpha,beta,gamma\n10,20,30\n70,80,90' )
         .splitCsv(header: ['col1', 'col2', 'col3'], skip: 1 )
-        .subscribe { row ->
-           println "${row.col1} - ${row.col2} - ${row.col3}"
-        }
+        .view { row -> "${row.col1} - ${row.col2} - ${row.col3}" }
 
 
 Available parameters:
@@ -913,7 +899,7 @@ each::
    Channel
         .fromPath('misc/sample.fa')
         .splitFasta( by: 10 )
-        .subscribe { print it }
+        .view()
 
 .. warning:: By default chunks are kept in memory. When splitting big files specify the parameter ``file: true`` to save the
   chunks into files in order to not incur in a ``OutOfMemoryException``. See the available parameter table below for details.
@@ -930,7 +916,7 @@ required the fields, as shown in the example below::
         .fromPath('misc/sample.fa')
         .splitFasta( record: [id: true, seqString: true ])
         .filter { record -> record.id =~ /^ENST0.*/ }
-        .subscribe { record -> println record.seqString }
+        .view { record -> record.seqString }
 
 
 .. note:: In this example, the file ``misc/sample.fa`` is split into records containing the ``id`` and the ``seqString`` fields
@@ -984,7 +970,7 @@ sequences each::
    Channel
         .fromPath('misc/sample.fastq')
         .splitFastq( by: 10 )
-        .println()
+        .view()
 
 
 .. warning:: By default chunks are kept in memory. When splitting big files specify the parameter ``file: true`` to save the
@@ -1001,7 +987,7 @@ the required fields, or just specify ``record: true`` as in the example shown be
    Channel
         .fromPath('misc/sample.fastq')
         .splitFastq( record: true )
-        .println { record -> record.readHeader }
+        .view { record -> record.readHeader }
 
 
 Finally the ``splitFastq`` operator is able to split paired-end read pair FASTQ files. It must be applied to a channel
@@ -1010,7 +996,7 @@ which emits tuples containing at least two elements that are the files to be spl
     Channel
         .fromFilePairs('/my/data/SRR*_{1,2}.fastq', flat:true)
         .splitFastq(by: 100_000, pe:true, file:true)
-        .println()
+        .view()
 
 
 .. note:: The ``fromFilePairs`` requires the ``flat:true`` option to have the file pairs as separate elements
@@ -1058,7 +1044,7 @@ For example::
    Channel
         .fromPath('/some/path/*.txt')
         .splitText()
-        .subscribe { print it }
+        .view()
 
 
 It splits the content of the files with suffix ``.txt``, and prints it line by line.
@@ -1082,7 +1068,7 @@ The following example shows how to split text files into chunks of 10 lines and 
      Channel
         .fromPath('/some/path/*.txt')
         .splitText( by: 10 ) { it.toUpperCase() }
-        .subscribe { print it }
+        .view()
 
 
 .. note:: Text chunks returned by the operator ``splitText`` are always terminated by a ``newline`` character.
@@ -1126,14 +1112,14 @@ The combining operators are:
 join
 -----
 
-The ``join`` operator creates a channel that joins together the items emitted by two channels for which exits
+The ``join`` operator creates a channel that joins together the items emitted by two channels for which exists
 a matching key. The key is defined, by default, as the first element in each item emitted.
 
 For example::
 
   left = Channel.from(['X', 1], ['Y', 2], ['Z', 3], ['P', 7])
   right= Channel.from(['Z', 6], ['Y', 5], ['X', 4])
-  left.join(right).println()
+  left.join(right).view()
 
 The resulting channel emits::
 
@@ -1148,7 +1134,7 @@ is missing, by specifying the optional parameter ``remainder`` as shown below::
 
     left = Channel.from(['X', 1], ['Y', 2], ['Z', 3], ['P', 7])
     right= Channel.from(['Z', 6], ['Y', 5], ['X', 4])
-    left.join(right, remainder: true).println()
+    left.join(right, remainder: true).view()
 
 The above example prints::
 
@@ -1190,7 +1176,7 @@ and the other which emits a series of even integers::
 
     odds
         .merge( evens )
-        .println()
+        .view()
 
 ::
 
@@ -1205,7 +1191,7 @@ An option closure can be provide to customise the items emitted by the resulting
 
     odds
         .merge( evens ) { a, b -> tuple(b*b, a) }
-        .println()
+        .view()
 
 .. _operator-mix:
 
@@ -1264,7 +1250,7 @@ For example::
 
         ch1 = Channel.from( 1,2,3 )
         ch2 = Channel.from( 1,0,0,2,7,8,9,3 )
-        ch1 .phase(ch2) .subscribe { println it }
+        ch1 .phase(ch2) .view()
 
 It prints::
 
@@ -1279,7 +1265,7 @@ as shown in the following example::
 
     ch1 = Channel.from( [sequence: 'aaaaaa', id: 1], [sequence: 'bbbbbb', id: 2] )
     ch2 = Channel.from( [val: 'zzzz', id: 3], [val: 'xxxxx', id: 1], [val: 'yyyyy', id: 2])
-    ch1 .phase(ch2) { it -> it.id } .subscribe { println it }
+    ch1 .phase(ch2) { it -> it.id } .view()
 
 
 It prints::
@@ -1293,7 +1279,7 @@ is missing, by specifying the optional parameter ``remainder`` as shown below::
 
         ch1 = Channel.from( 1,0,0,2,5,3 )
         ch2 = Channel.from( 1,2,3,4 )
-        ch1 .phase(ch2, remainder: true) .subscribe { println it }
+        ch1 .phase(ch2, remainder: true) .view()
 
 It prints::
 
@@ -1322,7 +1308,7 @@ or the value itself for any other data type. For example::
 	source = Channel.from( [1, 'alpha'], [2, 'beta'] )
 	target = Channel.from( [1, 'x'], [1, 'y'], [1, 'z'], [2,'p'], [2,'q'], [2,'t'] )
 
-	source.cross(target).subscribe { println it }
+	source.cross(target).view()
 
 It will output:: 
 
@@ -1434,9 +1420,7 @@ For example the following snippet shows how sort the content of the result file 
      Channel
         .from('Z'..'A')
         .collectFile(name:'result', sort: true, newLine: true)
-        .subscribe {
-            println it.text
-        }
+        .view { it.text }
 
 It will print::
 
@@ -1455,11 +1439,11 @@ The following example shows how use a `closure` to collect and sort all sequence
          .collectFile( name:'result.fa', sort: { it.size() } )  {
             it.sequence
           }
-         .subscribe { println it.text }
+         .view { it.text }
 
 
-.. warning:: The ``collectFile`` operator to carry out its function need to store in a temporary folder that is
- automatically deleted on job completion. For performance reason this folder is allocated in the machine local storage,
+.. warning:: The ``collectFile`` operator needs to store files in a temporary folder that is automatically deleted on 
+  job completion. For performance reasons this folder is located in the machine's local storage,
  and it will require as much free space as are the data you are collecting. Optionally, an alternative temporary data
  folder can be specified by using the ``tempDir`` parameter.
 
@@ -1475,7 +1459,7 @@ object (as right operand). For example::
     words = Channel.from('hello', 'ciao')
     numbers
         .combine(words)
-        .println()
+        .view()
 
     # outputs
     [1, hello]
@@ -1495,7 +1479,7 @@ For example::
 
     left
         .combine(right, by: 0)
-        .println()
+        .view()
 
     # outputs
     [A, 1, z]
@@ -1525,7 +1509,7 @@ For example::
     b = Channel.from(1,2,3)
     c = Channel.from('p','q')
 
-    c.concat( b, a ).subscribe { println it }
+    c.concat( b, a ).view()
 
 It will output::
 
@@ -1649,7 +1633,7 @@ just after the condition expression. For example::
   implicitly returned.
 
 .. warning:: The branch evaluation closure must be specified inline, ie. it *cannot* be assigned to a
-  variable and passed as argument to the operator, how it can be done with other operators.
+  variable and passed as argument to the operator, the way it can be done with other operators.
 
 To create a branch criteria as variable that can be passed as an argument to more than one
 ``branch`` operator use the ``branchCriteria`` built-in method as shown below::
@@ -1687,7 +1671,7 @@ the others into ``queue2``
 
     source.choice( queue1, queue2 ) { a -> a =~ /^Hello.*/ ? 0 : 1 }
 
-    queue1.subscribe { println it }
+    queue1.view()
 
 See also `branch`_ operator.
 
@@ -1723,14 +1707,16 @@ It prints::
     foo 2
     foo 3
     foo 4
+    foo 5
     bar 1
     bar 4
     bar 9
+    bar 16
 
 
 .. tip:: The statement expression can be omitted when the value to be emitted is the same as
-  the following one. If you need just need to forward the same value to multiple channel
-  you can use the following the shorthand notation showed below.
+  the following one. If you need just need to forward the same value to multiple channels
+  you can use the following the shorthand notation shown below.
 
 ::
 
@@ -1739,12 +1725,12 @@ It prints::
         .multiMap { it -> foo: bar: it }
         .set { result }
 
-As before creates two channels, however both of them receive the same source items.
+As before this creates two channels but now both of them receive the same source items.
 
 
 .. warning::
   The multi-map evaluation closure must be specified inline, ie. it *cannot* be assigned to a
-  variable and passed as argument to the operator, how it can be done with other operators.
+  variable and passed as argument to the operator, the way it can be done with other operators.
 
 To create a multi-map criteria as variable that can be passed as an argument to more than one
 ``multiMap`` operator use the ``multiMapCriteria`` built-in method as shown below::
@@ -1763,6 +1749,9 @@ To create a multi-map criteria as variable that can be passed as an argument to 
 into
 ----
 
+.. warning::
+    The ``into`` operator is not available when using Nextflow DSL2 syntax.
+
 The ``into`` operator connects a source channel to two or more target channels in such a way the values emitted by
 the source channel are copied to the target channels. For example::
 
@@ -1770,8 +1759,8 @@ the source channel are copied to the target channels. For example::
         .from( 'a', 'b', 'c' )
         .into{ foo; bar }
 
-    foo.println{ "Foo emit: " + it }
-    bar.println{ "Bar emit: " + it }
+    foo.view{ "Foo emit: " + it }
+    bar.view{ "Bar emit: " + it }
 
 ::
 
@@ -1792,8 +1781,8 @@ source channel. For example::
 
 
     (foo, bar) = Channel.from( 'a','b','c').into(2)
-    foo.println{ "Foo emit: " + it }
-    bar.println{ "Bar emit: " + it }
+    foo.view{ "Foo emit: " + it }
+    bar.view{ "Bar emit: " + it }
 
 
 .. note:: The above example takes advantage of the :ref:`multiple assignment <script-multiple-assignment>` syntax
@@ -1813,17 +1802,25 @@ The ``tap`` can be useful in certain scenarios where you may be required to conc
 as in the following example::
 
 
-    log1 = Channel.create().subscribe { println "Log 1: $it" }
-    log2 = Channel.create().subscribe { println "Log 2: $it" }
+    log1 = Channel.create()
+    log2 = Channel.create()
 
     Channel
-        .from ( 'a', 'b', 'c' )
-  	    .tap( log1 )
-  	    .map { it * 2 }
-  	    .tap( log2 )
-  	    .subscribe { println "Result: $it" }
+        .of ( 'a', 'b', 'c' )
+        .tap ( log1 )
+        .map { it * 2 }
+        .tap ( log2 )
+        .map { it.toUpperCase() }
+        .view { "Result: $it" }
+
+    log1.view { "Log 1: $it" }
+    log2.view { "Log 2: $it" }
 
 ::
+
+    Result: AA
+    Result: BB
+    Result: CC
 
     Log 1: a
     Log 1: b
@@ -1833,9 +1830,6 @@ as in the following example::
     Log 2: bb
     Log 2: cc
 
-    Result: aa
-    Result: bb
-    Result: cc
 
 The ``tap`` operator also allows the target channel to be specified by using a closure. The advantage of this syntax
 is that you won't need to previously create the target channel, because it is created implicitly by the operator itself.
@@ -1843,15 +1837,15 @@ is that you won't need to previously create the target channel, because it is cr
 Using the closure syntax the above example can be rewritten as shown below::
 
     Channel
-        .from ( 'a', 'b', 'c' )
-  	    .tap { log1 }
-  	    .map { it * 2 }
-  	    .tap { log2 }
-  	    .subscribe { println "Result: $it" }
+        .of ( 'a', 'b', 'c' )
+        .tap { log1 }
+        .map { it * 2 }
+        .tap { log2 }
+        .map { it.toUpperCase() }
+        .view { "Result: $it" }
 
-
-    log1.subscribe { println "Log 1: $it" }
-    log2.subscribe { println "Log 2: $it" }
+    log1.view { "Log 1: $it" }
+    log2.view { "Log 2: $it" }
 
 See also `into`_ and `separate`_ operators.
 
@@ -1860,7 +1854,7 @@ See also `into`_ and `separate`_ operators.
 separate
 --------
 
-.. warning:: The `separate` operator has been deprecated. Use `multiMap`_ instead.
+.. warning:: The ``separate`` operator has been deprecated. Use `multiMap`_ instead.
 
 The ``separate`` operator lets you copy the items emitted by the source channel into multiple 
 channels, which each of these can receive a `separate` version of the same item. 
@@ -1876,8 +1870,8 @@ list will be assigned to the output channel with the corresponding position inde
         .from ( 2,4,8 ) 
         .separate( queue1, queue2 ) { a -> [a+1, a*a] }
 
-    queue1.subscribe { println "Channel 1: $it" }
-    queue2.subscribe { println "Channel 2: $it" }
+    queue1.view { "Channel 1: $it" }
+    queue2.view { "Channel 2: $it" }
 	
 ::
 
@@ -1901,8 +1895,8 @@ For example::
         .from([1,2], ['a','b'], ['p','q'])
         .separate( alpha, delta )
 
-     alpha.subscribe { println "first : $it" }
-     delta.subscribe { println "second: $it" }
+     alpha.view { "first : $it" }
+     delta.view { "second: $it" }
 
 It will output::
 
@@ -1920,9 +1914,9 @@ For example::
     source = Channel.from(1,2,3)
     (queue1, queue2, queue3) = source.separate(3) { a -> [a, a+1, a*a] }
 
-    queue1.subscribe { println "Queue 1 > $it" }
-    queue2.subscribe { println "Queue 2 > $it" }
-    queue3.subscribe { println "Queue 3 > $it" }
+    queue1.view { "Queue 1 > $it" }
+    queue2.view { "Queue 2 > $it" }
+    queue3.view { "Queue 3 > $it" }
 
 The output will look like the following fragment::
 
@@ -1973,7 +1967,7 @@ items emitted by the source channel. For example::
         Channel
             .from(9,1,7,5)
             .count()
-            .subscribe { println it }
+            .view()
         // -> 4
 
 
@@ -1985,19 +1979,19 @@ a literal value, a Java class, or a `boolean predicate` that needs to be satisfi
         Channel
             .from(4,1,7,1,1)
             .count(1)
-            .subscribe { println it }
+            .view()
          // -> 3
 
         Channel
             .from('a','c','c','q','b')
             .count ( ~/c/ )
-            .subscribe { println it }
+            .view()
         // -> 2
         
         Channel
             .from('a','c','c','q','b')
             .count { it <= 'c' }
-            .subscribe { println it }
+            .view()
         // -> 4
 
 
@@ -2013,7 +2007,7 @@ For example::
     Channel
         .from( 'x', 'y', 'x', 'x', 'z', 'y' )
         .countBy()
-        .subscribe { println it }
+        .view()
 
 ::
 
@@ -2027,7 +2021,7 @@ that associates each item with the grouping key. For example::
     Channel
         .from( 'hola', 'hello', 'ciao', 'bonjour', 'halo' )
         .countBy { it[0] }
-        .subscribe { println it }
+        .view()
 
 
 ::
@@ -2046,7 +2040,7 @@ For example::
     Channel
         .from( 8, 6, 2, 5 )
         .min()
-        .subscribe { println "Min value is $it" }
+        .view { "Min value is $it" }
 
 ::
 
@@ -2059,7 +2053,7 @@ item that has the minimum length::
     Channel
     	.from("hello","hi","hey")
     	.min { it.size() } 
-    	.subscribe {  println it }
+    	.view()
 
 ::
 
@@ -2072,7 +2066,7 @@ taking two parameters that represent two emitted items to be compared. For examp
     Channel
     	.from("hello","hi","hey")
     	.min { a,b -> a.size() <=> b.size() } 
-    	.subscribe {  println it }
+    	.view()
 
 
 .. _operator-max:
@@ -2086,7 +2080,7 @@ For example::
     Channel
         .from( 8, 6, 2, 5 )
         .min()
-        .subscribe { println "Max value is $it" }
+        .view { "Max value is $it" }
 
 ::
 
@@ -2100,7 +2094,7 @@ item that has the maximum length::
     Channel
     	.from("hello","hi","hey")
     	.max { it.size() } 
-    	.subscribe {  println it }
+    	.view()
 
 ::
 
@@ -2113,7 +2107,7 @@ taking two parameters that represent two emitted items to be compared. For examp
     Channel
     	.from("hello","hi","hey")
     	.max { a,b -> a.size() <=> b.size() } 
-    	.subscribe {  println it }
+    	.view()
 
 
 .. _operator-sum:
@@ -2127,7 +2121,7 @@ For example::
     Channel
         .from( 8, 6, 2, 5 )
         .sum()
-        .subscribe { println "The sum is $it" }
+        .view { "The sum is $it" }
 
 ::
 
@@ -2140,7 +2134,7 @@ a function that, given an item, returns the value to be summed. For example::
 	Channel
 		.from( 4, 1, 7, 5 )
 		.sum { it * it } 
-		.subscribe {  println "Square: $it" } 
+		.view { "Square: $it" }
 
 ::
 
@@ -2158,7 +2152,7 @@ example::
         .from( '1', '7', '12' )
         .toInteger()
         .sum()
-        .println()
+        .view()
 
 
 
@@ -2229,7 +2223,7 @@ is applied is *empty* i.e. doesn't emit any value. Otherwise it will emit the sa
 
 Thus, the following example prints::
 
-    Channel .from(1,2,3) .ifEmpty('Hello') .println()
+    Channel .from(1,2,3) .ifEmpty('Hello') .view()
 
     1
     2
@@ -2241,7 +2235,7 @@ Thus, the following example prints::
 
 Instead, this one prints::
 
-    Channel.empty().ifEmpty('Hello') .println()
+    Channel.empty().ifEmpty('Hello') .view()
 
     Hello
 
@@ -2254,6 +2248,10 @@ See also: :ref:`channel-empty` method.
 
 print
 ------
+
+.. warning::
+  The ``print`` operator is deprecated and not supported anymore when using DSL2 syntax. Use
+  `view`_ instead.
 
 The ``print`` operator prints the items emitted by a channel to the standard output.
 An optional :ref:`closure <script-closure>` parameter can be specified to customise how items are printed.
@@ -2274,6 +2272,10 @@ See also: `println`_ and `view`_.
 println
 --------
 
+.. warning::
+  The ``println`` operator is deprecated and not supported anymore when using DSL2 syntax. Use
+  `view`_ instead.
+
 The ``println`` operator prints the items emitted by a channel to the console standard output appending
 a *new line* character to each of them. For example::
 
@@ -2293,7 +2295,7 @@ An optional closure parameter can be specified to customise how items are printe
 
   Channel
         .from('foo', 'bar', 'baz', 'qux')
-        .println { "~ $it" }
+        .view { "~ $it" }
 
 
 It prints::
@@ -2320,8 +2322,8 @@ The ``view`` operator prints the items emitted by a channel to the console stand
 
 Each item is printed on a separate line unless otherwise specified by using the ``newLine: false`` optional parameter.
 
-How the channel items are printed can be controlled by using an optional closure parameter. The closure it must return
-the actual value of the item being to be printed::
+How the channel items are printed can be controlled by using an optional closure parameter. The closure must return
+the actual value of the item to be printed::
 
     Channel.from(1,2,3)
             .map { it -> [it, it*it] }
@@ -2334,9 +2336,9 @@ It prints::
     Square of: 3 is 9
 
 
-.. note:: Both the *view* and `print`_ (or `println`_) operators consume them items emitted by the source channel to which they
-    are applied. However, the main difference between them is that the former returns a newly create channel whose content
-    is identical to the source one. This allows the *view* operator to be chained like other operators.
+.. note:: Both the *view* and `print`_ (or `println`_) operators consume the items emitted by the source channel to which they
+    are applied. The main difference between them is that the former returns a newly created channel whose content
+    is identical to the source channel while the latter does not. This allows the *view* operator to be chained like other operators.
 
 .. _operator-close:
 

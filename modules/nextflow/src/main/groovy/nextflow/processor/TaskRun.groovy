@@ -1,5 +1,5 @@
 /*
- * Copyright 2020, Seqera Labs
+ * Copyright 2020-2021, Seqera Labs
  * Copyright 2013-2019, Centre for Genomic Regulation (CRG)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -36,6 +36,7 @@ import nextflow.file.FileHelper
 import nextflow.file.FileHolder
 import nextflow.script.BodyDef
 import nextflow.script.ScriptType
+import nextflow.script.TaskClosure
 import nextflow.script.params.EnvInParam
 import nextflow.script.params.EnvOutParam
 import nextflow.script.params.FileInParam
@@ -659,6 +660,30 @@ class TaskRun implements Cloneable {
             else {
                 script = result.toString()
             }
+        }
+        catch( ProcessException e ) {
+            throw e
+        }
+        catch( Throwable e ) {
+            throw new ProcessUnrecoverableException("Process `${getName()}` script contains error(s)", e)
+        }
+
+        // make sure the task script is not empty
+        if( !script )
+            throw new ProcessUnrecoverableException("Process `${getName()}` script is empty")
+    }
+
+    @PackageScope void resolve(TaskClosure block) {
+        this.code = block.clone() as Closure
+        this.code.delegate = this.context
+        this.code.setResolveStrategy(Closure.DELEGATE_ONLY)
+
+        // -- set the task source
+        // note: this may be overwritten when a template file is used
+        this.source = block.getSource()
+
+        try {
+            script = code.call()?.toString()
         }
         catch( ProcessException e ) {
             throw e

@@ -1,5 +1,5 @@
 /*
- * Copyright 2020, Seqera Labs
+ * Copyright 2020-2021, Seqera Labs
  * Copyright 2013-2019, Centre for Genomic Regulation (CRG)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -45,13 +45,18 @@ if (groovyVer) {
     }
 }
 
+def projects(String...args) {
+    args.collect {project(it)}
+}
+
+group = 'io.nextflow'
+version = rootProject.file('VERSION').text.trim()
+
 allprojects {
     apply plugin: 'java'
     apply plugin: 'java-test-fixtures'
     apply plugin: 'idea'
-
-    version = new File('VERSION').text.trim()
-    group = 'io.nextflow'
+    apply plugin: 'groovy'
 
     sourceCompatibility = 1.8
     targetCompatibility = 1.8
@@ -61,7 +66,6 @@ allprojects {
     }
 
     repositories {
-        jcenter()
         mavenCentral()
         maven { url 'https://repo.eclipse.org/content/groups/releases' }
         maven { url 'https://oss.sonatype.org/content/repositories/snapshots' }
@@ -76,15 +80,6 @@ allprojects {
     }
 
     dependencies {
-        // test configuration
-
-        testFixturesCompile ("org.codehaus.groovy:groovy-test:2.5.11") { exclude group: 'org.codehaus.groovy' }
-        testFixturesCompile ("cglib:cglib-nodep:2.2")
-        testFixturesCompile ("org.objenesis:objenesis:2.1")
-        testFixturesCompile ("org.spockframework:spock-core:1.3-groovy-2.5") { exclude group: 'org.codehaus.groovy' }
-        testFixturesCompile 'com.google.jimfs:jimfs:1.1'
-
-
         // see https://docs.gradle.org/4.1/userguide/dependency_management.html#sec:module_replacement
         modules {
             module("commons-logging:commons-logging") { replacedBy("org.slf4j:jcl-over-slf4j") }
@@ -92,10 +87,14 @@ allprojects {
 
         // Documentation required libraries
         groovyDoc 'org.fusesource.jansi:jansi:1.11'
-        groovyDoc "org.codehaus.groovy:groovy-groovydoc:2.5.11"
-        groovyDoc "org.codehaus.groovy:groovy-ant:2.5.11"
+        groovyDoc "org.codehaus.groovy:groovy-groovydoc:3.0.7"
+        groovyDoc "org.codehaus.groovy:groovy-ant:3.0.7"
     }
 
+    test {
+        useJUnitPlatform()
+    }
+    
     // this is required due to this IDEA bug
     // https://youtrack.jetbrains.com/issue/IDEA-129282
     sourceSets {
@@ -133,7 +132,6 @@ allprojects {
                     '--add-opens=java.base/sun.net.www.protocol.ftp=ALL-UNNAMED',
                     '--add-opens=java.base/sun.net.www.protocol.file=ALL-UNNAMED',
                     '--add-opens=java.base/jdk.internal.misc=ALL-UNNAMED',
-                    '--add-modules=java.xml.bind,java.activation',
             ])
         }
     }
@@ -147,7 +145,7 @@ jar.enabled = false
  */
 task buildInfo { doLast {
 
-    def file0 = file('./modules/nextflow/src/main/groovy/nextflow/Const.groovy')
+    def file0 = file('./modules/nf-commons/src/main/nextflow/Const.groovy')
     def buildNum = 0
     def src = file0.text
     src.find(/APP_BUILDNUM *= *([0-9]*)/) { buildNum = it[1]?.toInteger()+1 }
@@ -180,6 +178,14 @@ task buildInfo { doLast {
     src = file0.text
     src = src.replaceAll(/releases\/v[0-9a-zA-Z_\-\.]+\//, "releases/v$version/" as String)
     file0.text = src
+
+    // -- create plugins-info file
+    def plugins = []
+    new File(rootProject.rootDir, 'plugins')
+            .eachDir { if(it.name.startsWith('nf-')) plugins << project(":plugins:${it.name}") }
+
+    def meta = plugins .collect { "$it.name@$it.version" }
+    file('modules/nextflow/src/main/resources/META-INF/plugins-info.txt').text = meta.join('\n')
 }}
 
 
@@ -188,12 +194,12 @@ task buildInfo { doLast {
  */
 task compile {
     dependsOn buildInfo
-    dependsOn allprojects.jar
+    dependsOn allprojects.classes
 }
 
 def getRuntimeConfigs() {
     def names = subprojects
-            .findAll { prj -> prj.name!='capsule-loader' }
+            .findAll { prj -> prj.name in ['nextflow','nf-commons','nf-https'] }
             .collect { it.name }
 
     FileCollection result = null
@@ -222,7 +228,6 @@ task exportClasspath {
     }
 }
 
-
 ext.nexusUsername = project.findProperty('nexusUsername')
 ext.nexusPassword = project.findProperty('nexusPassword')
 ext.nexusFullName = project.findProperty('nexusFullName')
@@ -231,21 +236,18 @@ ext.nexusEmail = project.findProperty('nexusEmail')
 // `signing.keyId` property needs to be defined in the `gradle.properties` file
 ext.enableSignArchives = project.findProperty('signing.keyId')
 
-ext.deployable = []
-ext.deployable << project(':nextflow')
-ext.deployable << project(':nf-commons')
-ext.deployable << project(':nf-console')
-ext.deployable << project(':nf-httpfs')
-ext.deployable << project(':nf-ga4gh')
-ext.deployable << project(':nf-google')
-ext.deployable << project(':nf-amazon')
-ext.deployable << project(':nf-tower')
+ext.coreProjects = projects( ':nextflow', ':nf-commons', ':nf-httpfs' )
+
+configure(coreProjects) {
+    group = 'io.nextflow'
+    version = rootProject.file('VERSION').text.trim()
+}
 
 /*
  * Maven central deployment
  * http://central.sonatype.org/pages/gradle.html
  */
-configure(deployable) {
+configure(coreProjects) {
     apply plugin: 'maven'
     apply plugin: 'signing'
 
@@ -316,11 +318,33 @@ configure(deployable) {
     signArchives.onlyIf { enableSignArchives }
 }
 
-task upload {
-    dependsOn compile
-    dependsOn deployable.uploadArchives
+
+String bytesToHex(byte[] bytes) {
+    StringBuffer result = new StringBuffer();
+    for (byte byt : bytes) result.append(Integer.toString((byt & 0xff) + 0x100, 16).substring(1));
+    return result.toString();
 }
 
+task makeDigest { doLast {
+    byte[] digest
+    String  str = file('nextflow').text
+    // create sha1
+    digest = java.security.MessageDigest.getInstance("SHA1").digest(str.getBytes())
+    file('nextflow.sha1').text = new BigInteger(1, digest).toString(16) + '\n'
+    // create sha-256
+    digest = java.security.MessageDigest.getInstance("SHA-256").digest(str.getBytes())
+    file('nextflow.sha256').text = bytesToHex(digest) + '\n'
+    // create md5
+    digest = java.security.MessageDigest.getInstance("MD5").digest(str.getBytes())
+    file('nextflow.md5').text = bytesToHex(digest) + '\n'
+}}
+
+
+task upload {
+    dependsOn compile
+    dependsOn makeDigest
+    dependsOn coreProjects.uploadArchives
+}
 
 /*
  * Configure Nextflow staging plugin -- https://github.com/Codearte/gradle-nexus-staging-plugin
@@ -334,5 +358,7 @@ nexusStaging {
     delayBetweenRetriesInMillis = 10_000
 }
 
-if( System.env.BUILD_PACK )
+if( System.env.BUILD_PACK ) {
     apply from: 'packing.gradle'
+}
+

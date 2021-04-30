@@ -1,5 +1,5 @@
 /*
- * Copyright 2020, Seqera Labs
+ * Copyright 2020-2021, Seqera Labs
  * Copyright 2013-2019, Centre for Genomic Regulation (CRG)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,6 +19,8 @@ package nextflow.k8s
 
 import java.nio.file.Files
 import java.nio.file.Path
+import java.time.Instant
+import java.time.format.DateTimeFormatter
 
 import groovy.transform.CompileDynamic
 import groovy.transform.CompileStatic
@@ -98,6 +100,10 @@ class K8sTaskHandler extends TaskHandler {
         executor.session.runName
     }
 
+    protected String getPodName() {
+        return podName
+    }
+
     protected K8sConfig getK8sConfig() { executor.getK8sConfig() }
 
     protected List<String> getContainerMounts() {
@@ -175,11 +181,11 @@ class K8sTaskHandler extends TaskHandler {
             builder.withEnv(PodEnv.value('NXF_OWNER', getOwner()))
 
         // add computing resources
-        final cpus = taskCfg.get('cpus') as Integer
+        final cpus = taskCfg.getCpus()
         final mem = taskCfg.getMemory()
         final acc = taskCfg.getAccelerator()
         if( cpus )
-            builder.withCpus(cpus as int)
+            builder.withCpus(cpus)
         if( mem )
             builder.withMemory(mem)
         if( acc )
@@ -212,7 +218,7 @@ class K8sTaskHandler extends TaskHandler {
         result.runName = getRunName()
         result.taskName = task.getName()
         result.processName = task.getProcessor().getName()
-        result.sessionId = "uuid-${executor.getSession().uniqueId}"
+        result.sessionId = "uuid-${executor.getSession().uniqueId}" as String
         return result
     }
 
@@ -254,6 +260,7 @@ class K8sTaskHandler extends TaskHandler {
         if( !state || delta >= 1_000) {
             def newState = client.podState(podName)
             if( newState ) {
+                log.trace "[K8s] Get pod=$podName state=$newState"
                 state = newState
                 timestamp = now
             }
@@ -266,12 +273,43 @@ class K8sTaskHandler extends TaskHandler {
         if( !podName ) throw new IllegalStateException("Missing K8s pod name -- cannot check if running")
         if(isSubmitted()) {
             def state = getState()
-            if (state && state.running != null) {
+            // include `terminated` state to allow the handler status to progress
+            if (state && (state.running != null || state.terminated)) {
                 status = TaskStatus.RUNNING
                 return true
             }
         }
         return false
+    }
+
+    long getEpochMilli(String timeString) {
+        final time = DateTimeFormatter.ISO_INSTANT.parse(timeString)
+        return Instant.from(time).toEpochMilli()
+    }
+
+    /**
+     * Update task start and end times based on pod timestamps.
+     * We update timestamps because it's possible for a task to run  so quickly
+     * (less than 1 second) that it skips right over the RUNNING status.
+     * If this happens, the startTimeMillis never gets set and remains equal to 0.
+     * To make sure startTimeMillis is non-zero we update it with the pod start time.
+     * We update completTimeMillis from the same pod info to be consistent.
+     */
+    void updateTimestamps(Map terminated) {
+        try {
+            startTimeMillis = getEpochMilli(terminated.startedAt as String)
+            completeTimeMillis = getEpochMilli(terminated.finishedAt as String)
+        } catch( Exception e ) {
+            log.debug "Failed updating timestamps '${terminated.toString()}'", e
+            // Only update if startTimeMillis hasn't already been set.
+            // If startTimeMillis _has_ been set, then both startTimeMillis
+            // and completeTimeMillis will have been set with the normal
+            // TaskHandler mechanism, so there's no need to reset them here.
+            if (!startTimeMillis) {
+                startTimeMillis = System.currentTimeMillis()
+                completeTimeMillis = System.currentTimeMillis()
+            }
+        }
     }
 
     @Override
@@ -286,6 +324,7 @@ class K8sTaskHandler extends TaskHandler {
             status = TaskStatus.COMPLETED
             savePodLogOnError(task)
             deletePodIfSuccessful(task)
+            updateTimestamps(state.terminated as Map)
             return true
         }
 

@@ -1,5 +1,5 @@
 /*
- * Copyright 2020, Seqera Labs
+ * Copyright 2020-2021, Seqera Labs
  * Copyright 2013-2019, Centre for Genomic Regulation (CRG)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -40,6 +40,7 @@ import nextflow.util.RateUnit
 import org.apache.commons.lang.StringUtils
 import org.codehaus.groovy.runtime.DefaultGroovyMethods
 import org.codehaus.groovy.runtime.GStringImpl
+import org.codehaus.groovy.runtime.InvokerHelper
 import org.codehaus.groovy.runtime.ResourceGroovyMethods
 import org.codehaus.groovy.runtime.StringGroovyMethods
 import org.slf4j.Logger
@@ -901,5 +902,35 @@ class Bolts {
         }
 
         return e.message ?: e.toString()
+    }
+
+    static redact(String self, int max=5, String suffix='...') {
+        if( !self )
+            return self
+        if( self.size()<max )
+            return suffix
+        else
+            return self.substring(0,Math.min(self.size()-max, max)) + suffix
+    }
+
+    protected static <T extends Serializable> T deepClone0(T obj) {
+        final buffer = new ByteArrayOutputStream()
+        final oos = new ObjectOutputStream(buffer)
+        oos.writeObject(obj)
+        oos.flush()
+
+        final inputStream = new ByteArrayInputStream(buffer.toByteArray())
+        return (T) new ObjectInputStream(inputStream).readObject()
+    }
+
+    static <T extends Map> T deepClone(T map) {
+        final result = InvokerHelper.invokeMethod(map, 'clone', null)
+        for( def key : map.keySet() ) {
+            def value = map.get(key)
+            if( value instanceof Map ) {
+               map.put(key, deepClone(value))
+            }
+        }
+        return (T)result
     }
 }
